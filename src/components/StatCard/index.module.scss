@@ -1,0 +1,119 @@
+@use '@/styles/variables.scss' as *;
+
+.statCard {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  box-shadow: $shadow-card;
+  position: relative;
+  overflow: hidden;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &.colorBlue {
+    .icon { color: $color-primary; }
+    .value { color: $color-primary; }
+    &::before { background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, transparent 100%); }
+  }
+
+  &.colorGreen {
+    .icon { color: $color-success; }
+    .value { color: $color-success; }
+    &::before { background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%); }
+  }
+
+  &.colorOrange {
+    .icon { color: $color-warning; }
+    .value { color: $color-warning; }
+    &::before { background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, transparent 100%); }
+  }
+
+  &.colorRed {
+    .icon { color: $color-error; }
+    .value { color: $color-error; }
+    &::before { background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, transparent 100%); }
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 120rpx;
+    pointer-events: none;
+  }
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: $spacing-md;
+  position: relative;
+  z-index: 1;
+}
+
+.icon {
+  font-size: 36rpx;
+  margin-right: $spacing-sm;
+}
+
+.title {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  font-weight: $font-weight-medium;
+}
+
+.cardBody {
+  display: flex;
+  align-items: baseline;
+  position: relative;
+  z-index: 1;
+}
+
+.value {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  line-height: 1.2;
+}
+
+.unit {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  margin-left: $spacing-xs;
+}
+
+.trend {
+  margin-top: $spacing-sm;
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+
+  &.up {
+    color: $color-error;
+    .trendIcon { color: $color-error; }
+  }
+
+  &.down {
+    color: $color-success;
+    .trendIcon { color: $color-success; }
+  }
+
+  &.normal {
+    color: $color-text-tertiary;
+    .trendIcon { color: $color-text-tertiary; }
+  }
+}
+
+.trendIcon {
+  font-size: $font-size-sm;
+  margin-right: 4rpx;
+}
+
+.trendValue {
+  font-size: $font-size-xs;
+}

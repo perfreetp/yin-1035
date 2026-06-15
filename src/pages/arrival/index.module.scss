@@ -1,0 +1,266 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  background: $color-bg-page;
+  padding-bottom: 40rpx;
+}
+
+.content {
+  padding: $page-padding;
+}
+
+.sectionTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: $spacing-md;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitleLeft {
+  display: flex;
+  align-items: center;
+
+  &::before {
+    content: '';
+    width: 6rpx;
+    height: 28rpx;
+    background: $color-success;
+    border-radius: 3rpx;
+    margin-right: $spacing-sm;
+  }
+}
+
+.sectionAction {
+  font-size: $font-size-sm;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+}
+
+.tabBar {
+  display: flex;
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  padding: 6rpx;
+  margin-bottom: $spacing-lg;
+  box-shadow: $shadow-card;
+}
+
+.tabItem {
+  flex: 1;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  font-weight: $font-weight-medium;
+  transition: all $transition-base;
+
+  &.active {
+    background: $color-primary;
+    color: $color-text-white;
+    font-weight: $font-weight-semibold;
+  }
+}
+
+.transportList {
+  margin-bottom: $spacing-lg;
+}
+
+.transportCard {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  box-shadow: $shadow-card;
+  margin-bottom: $spacing-md;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.99);
+  }
+}
+
+.transportCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-md;
+}
+
+.transportNo {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.statusBadge {
+  padding: 6rpx 16rpx;
+  border-radius: $radius-xs;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+
+  &.statusArrived {
+    background: $color-tag-green-bg;
+    color: $color-success;
+  }
+
+  &.statusInTransit {
+    background: $color-tag-blue-bg;
+    color: $color-primary;
+  }
+}
+
+.transportRoute {
+  display: flex;
+  align-items: center;
+  margin-bottom: $spacing-md;
+}
+
+.routeFrom,
+.routeTo {
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+  font-weight: $font-weight-medium;
+}
+
+.routeArrow {
+  margin: 0 $spacing-sm;
+  color: $color-text-tertiary;
+  font-size: $font-size-md;
+}
+
+.transportInfo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-md;
+  padding-top: $spacing-md;
+  border-top: 2rpx solid $color-divider;
+}
+
+.infoItem {
+  display: flex;
+  align-items: center;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+
+  .label {
+    color: $color-text-tertiary;
+    margin-right: 8rpx;
+  }
+
+  .value {
+    color: $color-text-primary;
+    font-weight: $font-weight-medium;
+  }
+}
+
+.qualitySection {
+  margin-top: $spacing-md;
+  padding-top: $spacing-md;
+  border-top: 2rpx solid $color-divider;
+}
+
+.qualityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-sm;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.qualityLabel {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.qualityValue {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+
+  &.good {
+    color: $color-success;
+  }
+
+  &.normal {
+    color: $color-warning;
+  }
+
+  &.bad {
+    color: $color-error;
+  }
+}
+
+.emptyState {
+  text-align: center;
+  padding: 120rpx 0;
+}
+
+.emptyIcon {
+  font-size: 100rpx;
+  margin-bottom: $spacing-md;
+}
+
+.emptyTitle {
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+  margin-bottom: $spacing-sm;
+}
+
+.emptyDesc {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.qualityBar {
+  height: 12rpx;
+  background: $color-divider;
+  border-radius: 6rpx;
+  overflow: hidden;
+  flex: 1;
+  margin: 0 $spacing-md;
+}
+
+.qualityBarFill {
+  height: 100%;
+  border-radius: 6rpx;
+  transition: width $transition-base;
+
+  &.good {
+    background: linear-gradient(90deg, $color-success, #34d399);
+  }
+
+  &.normal {
+    background: linear-gradient(90deg, $color-warning, #fbbf24);
+  }
+
+  &.bad {
+    background: linear-gradient(90deg, $color-error, #f87171);
+  }
+}
+
+.detailLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: $spacing-md;
+  padding-top: $spacing-md;
+  border-top: 2rpx solid $color-divider;
+  font-size: $font-size-sm;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+}

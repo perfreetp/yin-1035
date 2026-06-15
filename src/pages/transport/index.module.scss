@@ -1,0 +1,489 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  background: $color-bg-page;
+  padding-bottom: 120rpx;
+}
+
+.content {
+  padding: $page-padding;
+}
+
+.header {
+  background: linear-gradient(135deg, $color-primary 0%, $color-cold 100%);
+  padding: 48rpx $page-padding 80rpx;
+  margin: 0 (-$page-padding) $spacing-lg;
+  color: $color-text-white;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -100rpx;
+    right: -100rpx;
+    width: 400rpx;
+    height: 400rpx;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 50%;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -80rpx;
+    left: -60rpx;
+    width: 200rpx;
+    height: 200rpx;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 50%;
+  }
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
+}
+
+.transportNo {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+}
+
+.statusBadge {
+  padding: 8rpx 20rpx;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: $radius-round;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+}
+
+.headerInfo {
+  margin-top: $spacing-lg;
+  position: relative;
+  z-index: 1;
+}
+
+.routeInfo {
+  display: flex;
+  align-items: center;
+  margin-bottom: $spacing-md;
+}
+
+.routeText {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+}
+
+.routeArrow {
+  margin: 0 $spacing-md;
+  font-size: $font-size-lg;
+  opacity: 0.8;
+}
+
+.tempDisplay {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xl;
+}
+
+.tempItem {
+  display: flex;
+  flex-direction: column;
+}
+
+.tempLabel {
+  font-size: $font-size-xs;
+  opacity: 0.8;
+  margin-bottom: 4rpx;
+}
+
+.tempValue {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-bold;
+
+  .unit {
+    font-size: $font-size-sm;
+    font-weight: $font-weight-normal;
+    opacity: 0.9;
+    margin-left: 4rpx;
+  }
+}
+
+.coolerStatus {
+  position: absolute;
+  top: $spacing-lg;
+  right: $spacing-lg;
+  display: flex;
+  align-items: center;
+  padding: 8rpx 16rpx;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: $radius-round;
+  z-index: 2;
+}
+
+.coolerDot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  margin-right: 8rpx;
+  background: $color-success;
+  box-shadow: 0 0 10rpx $color-success;
+
+  &.running {
+    animation: pulse 2s infinite;
+  }
+
+  &.stopped {
+    background: $color-text-disabled;
+    box-shadow: none;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.coolerText {
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+}
+
+.sectionTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: $spacing-md;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitleLeft {
+  display: flex;
+  align-items: center;
+
+  &::before {
+    content: '';
+    width: 6rpx;
+    height: 28rpx;
+    background: $color-primary;
+    border-radius: 3rpx;
+    margin-right: $spacing-sm;
+  }
+}
+
+.sectionAction {
+  font-size: $font-size-sm;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+}
+
+.actionCard {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  box-shadow: $shadow-card;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.96);
+  }
+}
+
+.actionIcon {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44rpx;
+  margin-bottom: $spacing-md;
+
+  &.iconBlue {
+    background: $color-tag-blue-bg;
+  }
+
+  &.iconGreen {
+    background: $color-tag-green-bg;
+  }
+
+  &.iconOrange {
+    background: $color-tag-orange-bg;
+  }
+
+  &.iconRed {
+    background: $color-tag-red-bg;
+  }
+}
+
+.actionTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: 4rpx;
+}
+
+.actionDesc {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.recordCard {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  box-shadow: $shadow-card;
+  margin-bottom: $spacing-md;
+}
+
+.recordHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-md;
+}
+
+.recordTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.recordCount {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.recordList {
+  max-height: 400rpx;
+  overflow-y: auto;
+}
+
+.recordItem {
+  display: flex;
+  align-items: center;
+  padding: $spacing-md 0;
+  border-bottom: 2rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.recordTime {
+  width: 120rpx;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.recordContent {
+  flex: 1;
+}
+
+.recordMain {
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+  margin-bottom: 4rpx;
+}
+
+.recordSub {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.recordTag {
+  padding: 6rpx 16rpx;
+  border-radius: $radius-xs;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+
+  &.tagStart {
+    background: $color-tag-green-bg;
+    color: $color-success;
+  }
+
+  &.tagStop {
+    background: $color-tag-orange-bg;
+    color: $color-warning;
+  }
+}
+
+.emptyState {
+  text-align: center;
+  padding: 60rpx 0;
+}
+
+.emptyIcon {
+  font-size: 64rpx;
+  margin-bottom: $spacing-sm;
+}
+
+.emptyText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.bottomBar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: $color-bg-card;
+  padding: $spacing-md $page-padding;
+  padding-bottom: calc(#{$spacing-md} + env(safe-area-inset-bottom));
+  box-shadow: 0 -4rpx 16rpx rgba(0, 0, 0, 0.08);
+  display: flex;
+  gap: $spacing-md;
+  z-index: 100;
+}
+
+.arriveBtn {
+  @include button-reset;
+  flex: 1;
+  height: $button-height-lg;
+  background: linear-gradient(135deg, $color-success 0%, #34d399 100%);
+  color: $color-text-white;
+  border-radius: $radius-button;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.98);
+    opacity: 0.95;
+  }
+}
+
+.noTransportState {
+  text-align: center;
+  padding: 120rpx 0;
+}
+
+.noTransportIcon {
+  font-size: 120rpx;
+  margin-bottom: $spacing-lg;
+}
+
+.noTransportTitle {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: $spacing-sm;
+}
+
+.noTransportDesc {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  margin-bottom: $spacing-xl;
+}
+
+.goLoadingBtn {
+  @include button-reset;
+  display: inline-flex;
+  height: $button-height-lg;
+  padding: 0 60rpx;
+  background: $color-primary;
+  color: $color-text-white;
+  border-radius: $radius-button;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+
+  &:active {
+    opacity: 0.9;
+  }
+}
+
+.transportList {
+  margin-top: $spacing-md;
+}
+
+.transportCard {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  box-shadow: $shadow-card;
+  margin-bottom: $spacing-md;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.99);
+  }
+
+  &.active {
+    border: 3rpx solid $color-primary;
+  }
+}
+
+.transportCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-md;
+}
+
+.transportNoText {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.inTransitBadge {
+  padding: 6rpx 16rpx;
+  background: $color-tag-green-bg;
+  color: $color-success;
+  border-radius: $radius-xs;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+}
+
+.transportCardBody {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: $spacing-md;
+  border-top: 2rpx solid $color-divider;
+}
+
+.transportRoute {
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+  font-weight: $font-weight-medium;
+}
+
+.transportBaskets {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-bold;
+  color: $color-primary;
+
+  .unit {
+    font-size: $font-size-sm;
+    font-weight: $font-weight-normal;
+    color: $color-text-tertiary;
+    margin-left: 4rpx;
+  }
+}

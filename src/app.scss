@@ -1,0 +1,194 @@
+@use '@/styles/compat.scss';
+@use '@/styles/variables.scss' as *;
+
+// 全局样式
+page {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB',
+    sans-serif;
+  font-size: $font-size-md;
+  line-height: $line-height-normal;
+  color: $color-text-primary;
+  background-color: $color-bg-page;
+}
+
+// 页面容器
+.pageContainer {
+  min-height: 100vh;
+  padding-bottom: 120rpx;
+  box-sizing: border-box;
+}
+
+// 卡片通用样式
+.card {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  padding: $spacing-lg;
+  margin-bottom: $spacing-md;
+}
+
+// 标签样式
+.tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: $radius-xs;
+  font-size: $font-size-xs;
+  line-height: 1.6;
+
+  &.tagBlue {
+    background: $color-tag-blue-bg;
+    color: $color-primary-dark;
+  }
+
+  &.tagGreen {
+    background: $color-tag-green-bg;
+    color: $color-success;
+  }
+
+  &.tagOrange {
+    background: $color-tag-orange-bg;
+    color: $color-warning;
+  }
+
+  &.tagRed {
+    background: $color-tag-red-bg;
+    color: $color-error;
+  }
+}
+
+// 按钮重置
+.btn {
+  @include button-reset;
+  height: $button-height-md;
+  border-radius: $radius-button;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+
+  &.btnPrimary {
+    background: $color-primary;
+    color: $color-text-white;
+  }
+
+  &.btnSuccess {
+    background: $color-success;
+    color: $color-text-white;
+  }
+
+  &.btnWarning {
+    background: $color-warning;
+    color: $color-text-white;
+  }
+
+  &.btnOutline {
+    background: transparent;
+    border: 2rpx solid $color-border;
+    color: $color-text-secondary;
+  }
+
+  &.btnBlock {
+    width: 100%;
+  }
+
+  &.btnLg {
+    height: $button-height-lg;
+    font-size: $font-size-lg;
+  }
+
+  &.btnSm {
+    height: $button-height-sm;
+    font-size: $font-size-sm;
+    padding: 0 $spacing-md;
+  }
+}
+
+// Flex工具类
+.flex {
+  display: flex;
+}
+
+.flexCenter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flexBetween {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flexColumn {
+  display: flex;
+  flex-direction: column;
+}
+
+.flex1 {
+  flex: 1;
+}
+
+// 文本工具类
+.textPrimary {
+  color: $color-text-primary;
+}
+
+.textSecondary {
+  color: $color-text-secondary;
+}
+
+.textTertiary {
+  color: $color-text-tertiary;
+}
+
+.textSuccess {
+  color: $color-success;
+}
+
+.textWarning {
+  color: $color-warning;
+}
+
+.textError {
+  color: $color-error;
+}
+
+.textCenter {
+  text-align: center;
+}
+
+.fontBold {
+  font-weight: $font-weight-semibold;
+}
+
+.fontMedium {
+  font-weight: $font-weight-medium;
+}
+
+// 间距工具类
+.mtSm { margin-top: $spacing-sm; }
+.mtMd { margin-top: $spacing-md; }
+.mtLg { margin-top: $spacing-lg; }
+.mtXl { margin-top: $spacing-xl; }
+
+.mbSm { margin-bottom: $spacing-sm; }
+.mbMd { margin-bottom: $spacing-md; }
+.mbLg { margin-bottom: $spacing-lg; }
+.mbXl { margin-bottom: $spacing-xl; }
+
+.mlSm { margin-left: $spacing-sm; }
+.mlMd { margin-left: $spacing-md; }
+.mlLg { margin-left: $spacing-lg; }
+
+.mrSm { margin-right: $spacing-sm; }
+.mrMd { margin-right: $spacing-md; }
+.mrLg { margin-right: $spacing-lg; }
+
+.pSm { padding: $spacing-sm; }
+.pMd { padding: $spacing-md; }
+.pLg { padding: $spacing-lg; }
