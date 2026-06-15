@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Image } from '@tarojs/components';
+import { View, Text, ScrollView, Image, Input } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import classNames from 'classnames';
 import { useAppStore } from '@/store/useAppStore';
@@ -7,16 +7,29 @@ import { formatDateTime, formatTime, formatDate } from '@/utils/date';
 import { isPhotoValid, chooseImageAsBase64 } from '@/utils/image';
 import {
   TransportStatus, TempHumidityRecord, CoolerRecord,
-  SealRecord, PressureRiskRecord, ArrivalRecord
+  SealRecord, PressureRiskRecord, ArrivalRecord, Batch
 } from '@/types';
 import styles from './index.module.scss';
 
 type RecordTabType = 'temp' | 'cooler' | 'seal' | 'pressure' | 'loss';
 
+interface LossRecordForm {
+  batchId: string;
+  batchNo: string;
+  categoryName: string;
+  originalBaskets: number;
+  arrivalBaskets: string;
+  lossBaskets: string;
+  qualityScore: string;
+  notes: string;
+}
+
 const TransportDetailPage: React.FC = () => {
   const router = useRouter();
-  const { transports, updateSealRecord } = useAppStore();
+  const { transports, updateSealRecord, batchUpdateArrivalRecords } = useAppStore();
   const [activeTab, setActiveTab] = useState<RecordTabType>('temp');
+  const [showLossModal, setShowLossModal] = useState(false);
+  const [lossRecords, setLossRecords] = useState<LossRecordForm[]>([]);
 
   const transportId = router.params.id;
 
@@ -102,6 +115,100 @@ const TransportDetailPage: React.FC = () => {
 
   const handlePreviewImage = (url: string) => {
     Taro.previewImage({ urls: [url], current: url });
+  };
+
+  const initLossRecords = () => {
+    if (!transport) return;
+    const records = sortedBatches.map(batch => {
+      const existing = (transport.arrivalRecords || []).find(r => r.batchId === batch.id);
+      return {
+        batchId: batch.id,
+        batchNo: batch.batchNo,
+        categoryName: batch.categoryName,
+        originalBaskets: batch.basketCount,
+        arrivalBaskets: existing ? String(existing.arrivalBaskets) : String(batch.basketCount),
+        lossBaskets: existing ? String(existing.lossBaskets) : '0',
+        qualityScore: existing ? String(existing.qualityScore) : '100',
+        notes: existing?.notes || '',
+      };
+    });
+    setLossRecords(records);
+  };
+
+  const handleLossRecordChange = (index: number, field: keyof LossRecordForm, value: string) => {
+    setLossRecords(prev => {
+      const updated = [...prev];
+      const rec = { ...updated[index], [field]: value };
+
+      if (field === 'arrivalBaskets') {
+        const arrival = parseInt(value) || 0;
+        rec.lossBaskets = String(Math.max(0, rec.originalBaskets - arrival));
+      } else if (field === 'lossBaskets') {
+        const loss = parseInt(value) || 0;
+        rec.arrivalBaskets = String(Math.max(0, rec.originalBaskets - loss));
+      }
+
+      updated[index] = rec;
+      return updated;
+    });
+  };
+
+  const handleSaveLossRecords = () => {
+    if (!transportId || !transport) return;
+
+    for (let i = 0; i < lossRecords.length; i++) {
+      const rec = lossRecords[i];
+      const arrival = parseInt(rec.arrivalBaskets) || 0;
+      const loss = parseInt(rec.lossBaskets) || 0;
+      const quality = parseInt(rec.qualityScore) || 0;
+
+      if (arrival + loss !== rec.originalBaskets) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：到站+损耗 ≠ 装车筐数`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+      if (arrival > rec.originalBaskets) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：到站筐数不能超过装车筐数`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+      if (quality < 0 || quality > 100) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：品质分应在 0-100 之间`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+    }
+
+    const records: Partial<ArrivalRecord>[] = lossRecords.map(r => {
+      const arrival = parseInt(r.arrivalBaskets) || 0;
+      const loss = parseInt(r.lossBaskets) || 0;
+      const lossRate = r.originalBaskets > 0
+        ? parseFloat(((loss / r.originalBaskets) * 100).toFixed(1))
+        : 0;
+      return {
+        batchId: r.batchId,
+        batchNo: r.batchNo,
+        categoryName: r.categoryName,
+        originalBaskets: r.originalBaskets,
+        arrivalBaskets: arrival,
+        lossBaskets: loss,
+        lossRate,
+        qualityScore: parseInt(r.qualityScore) || 100,
+        notes: r.notes || undefined,
+      };
+    });
+    batchUpdateArrivalRecords(transportId, records);
+    setShowLossModal(false);
+    Taro.showToast({ title: '保存成功', icon: 'success' });
   };
 
   const handleRetakeSealPhoto = async (sealId: string) => {
@@ -267,47 +374,121 @@ const TransportDetailPage: React.FC = () => {
 
   const renderLossRecords = () => (
     <View className={styles.recordList}>
-      {arrivalRecords.length === 0 ? (
+      {sortedBatches.length === 0 ? (
         <View className={styles.emptyState}>
           <Text className={styles.emptyIcon}>📋</Text>
-          <Text className={styles.emptyText}>暂无损耗核对记录</Text>
+          <Text className={styles.emptyText}>暂无批次数据</Text>
         </View>
       ) : (
-        arrivalRecords.map((record: ArrivalRecord) => (
-          <View key={record.id} className={styles.lossRecordCard}>
-            <View className={styles.lossRecordHeader}>
-              <Text className={styles.lossCategory}>{record.categoryName}</Text>
-              <Text className={classNames(styles.lossRateTag, styles[getLossLevel(record.lossRate)])}>
-                损耗 {record.lossRate}%
-              </Text>
+        sortedBatches.map((batch, index) => {
+          const arrivalRecord = arrivalRecords.find(r => r.batchId === batch.id);
+          const hasRecord = !!arrivalRecord;
+          return (
+            <View key={batch.id} className={styles.batchLossCard}>
+              <View className={styles.batchLossHeader}>
+                <View className={styles.batchLossTitle}>
+                  <Text className={styles.batchLossNo}>{batch.batchNo}</Text>
+                  <Text className={styles.batchLossCategory}>{batch.categoryName}</Text>
+                  {hasRecord && arrivalRecord && arrivalRecord.lossBaskets > 0 && (
+                    <Text className={classNames(styles.lossRateTag, styles[getLossLevel(arrivalRecord.lossRate)])}>
+                      损耗 {arrivalRecord.lossRate}%
+                    </Text>
+                  )}
+                </View>
+                <View
+                  className={styles.editBtn}
+                  onClick={() => {
+                    initLossRecords();
+                    setShowLossModal(true);
+                  }}
+                >
+                  {hasRecord ? '修改' : '补录'}
+                </View>
+              </View>
+
+              <View className={styles.batchLossSection}>
+                <Text className={styles.batchLossSectionTitle}>🌱 装车信息</Text>
+                <View className={styles.batchInfoGrid}>
+                  <View className={styles.batchInfoItem}>
+                    <Text className={styles.batchInfoLabel}>合作社</Text>
+                    <Text className={styles.batchInfoValue}>{batch.cooperative || '--'}</Text>
+                  </View>
+                  <View className={styles.batchInfoItem}>
+                    <Text className={styles.batchInfoLabel}>基地</Text>
+                    <Text className={styles.batchInfoValue}>{batch.base || '--'}</Text>
+                  </View>
+                  <View className={styles.batchInfoItem}>
+                    <Text className={styles.batchInfoLabel}>地块</Text>
+                    <Text className={styles.batchInfoValue}>{batch.plot || '--'}</Text>
+                  </View>
+                  <View className={styles.batchInfoItem}>
+                    <Text className={styles.batchInfoLabel}>预冷</Text>
+                    <Text className={styles.batchInfoValue}>
+                      {batch.precoolStatus === 'completed' ? '❄️ 已完成' :
+                        batch.precoolStatus === 'cooling' ? '🧊 预冷中' : '🌡️ 未预冷'}
+                    </Text>
+                  </View>
+                  <View className={styles.batchInfoItem}>
+                    <Text className={styles.batchInfoLabel}>装车筐数</Text>
+                    <Text className={styles.batchInfoValue}>{batch.basketCount}筐</Text>
+                  </View>
+                  <View className={styles.batchInfoItem}>
+                    <Text className={styles.batchInfoLabel}>装载顺序</Text>
+                    <Text className={styles.batchInfoValue}>第 {index + 1} 批</Text>
+                  </View>
+                </View>
+                {batch.loadTime && (
+                  <View className={styles.batchInfoFull}>
+                    <Text className={styles.batchInfoLabel}>上车时间</Text>
+                    <Text className={styles.batchInfoValue}>
+                      {formatDate(batch.loadTime)} {formatTime(batch.loadTime)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View className={styles.batchLossSection}>
+                <Text className={styles.batchLossSectionTitle}>✅ 到站核对</Text>
+                {!hasRecord ? (
+                  <View className={styles.noRecordHint}>
+                    <Text style={{ color: '#94a3b8', fontSize: '24rpx' }}>尚未核对</Text>
+                    <Text style={{ color: '#0ea5e9', fontSize: '24rpx' }}>点右上角「补录」</Text>
+                  </View>
+                ) : (
+                  <>
+                    <View className={styles.lossRow}>
+                      <View className={styles.lossCell}>
+                        <Text className={styles.lossLabel}>到站</Text>
+                        <Text className={styles.lossValue}>{arrivalRecord!.arrivalBaskets}筐</Text>
+                      </View>
+                      <View className={styles.lossCell}>
+                        <Text className={styles.lossLabel}>损耗</Text>
+                        <Text className={classNames(styles.lossValue, arrivalRecord!.lossBaskets > 0 ? styles.lossBad : '')}>
+                          {arrivalRecord!.lossBaskets}筐
+                        </Text>
+                      </View>
+                      <View className={styles.lossCell}>
+                        <Text className={styles.lossLabel}>损耗率</Text>
+                        <Text className={classNames(styles.lossValue, styles[getLossLevel(arrivalRecord!.lossRate)])}>
+                          {arrivalRecord!.lossRate}%
+                        </Text>
+                      </View>
+                      <View className={styles.lossCell}>
+                        <Text className={styles.lossLabel}>品质</Text>
+                        <Text className={classNames(styles.lossValue, styles[getQualityLevel(arrivalRecord!.qualityScore)])}>
+                          {arrivalRecord!.qualityScore}分
+                        </Text>
+                      </View>
+                    </View>
+                    {arrivalRecord!.notes && (
+                      <View className={styles.lossNotes}>备注：{arrivalRecord!.notes}</View>
+                    )}
+                  </>
+                )}
+              </View>
             </View>
-            <View className={styles.lossRow}>
-              <View className={styles.lossCell}>
-                <Text className={styles.lossLabel}>装车</Text>
-                <Text className={styles.lossValue}>{record.originalBaskets}筐</Text>
-              </View>
-              <View className={styles.lossCell}>
-                <Text className={styles.lossLabel}>到站</Text>
-                <Text className={styles.lossValue}>{record.arrivalBaskets}筐</Text>
-              </View>
-              <View className={styles.lossCell}>
-                <Text className={styles.lossLabel}>损耗</Text>
-                <Text className={classNames(styles.lossValue, record.lossBaskets > 0 ? styles.lossBad : '')}>
-                  {record.lossBaskets}筐
-                </Text>
-              </View>
-              <View className={styles.lossCell}>
-                <Text className={styles.lossLabel}>品质</Text>
-                <Text className={classNames(styles.lossValue, styles[getQualityLevel(record.qualityScore)])}>
-                  {record.qualityScore}分
-                </Text>
-              </View>
-            </View>
-            {record.notes && (
-              <View className={styles.lossNotes}>备注：{record.notes}</View>
-            )}
-          </View>
-        ))
+          );
+        })
       )}
     </View>
   );
@@ -524,6 +705,95 @@ const TransportDetailPage: React.FC = () => {
             )}
           </View>
         </View>
+
+        {showLossModal && (
+          <View
+            className="modal-mask"
+            onClick={() => setShowLossModal(false)}
+            style={{ alignItems: 'flex-end' }}
+          >
+            <View
+              className={styles.lossSheet}
+              onClick={e => e.stopPropagation()}
+            >
+              <View className={styles.lossSheetHeader}>
+                <View>
+                  <Text className="modal-title">按批次核对</Text>
+                  <Text style={{ fontSize: '24rpx', color: '#64748b', marginTop: '8rpx' }}>
+                    共 {lossRecords.length} 批，{transport?.totalBaskets || 0} 筐
+                  </Text>
+                </View>
+                <Text
+                  style={{ fontSize: '26rpx', color: '#0ea5e9' }}
+                  onClick={() => initLossRecords()}
+                >
+                  重置
+                </Text>
+              </View>
+
+              <ScrollView scrollY className={styles.lossList}>
+                {lossRecords.map((rec, index) => (
+                  <View key={rec.batchId} className={styles.lossItem}>
+                    <View className={styles.lossItemHeader}>
+                      <Text className={styles.lossItemNo}>{index + 1}.</Text>
+                      <Text className={styles.lossItemName}>{rec.categoryName}</Text>
+                      <Text className={styles.lossItemBatchNo}>{rec.batchNo}</Text>
+                    </View>
+                    <View className={styles.lossInputRow}>
+                      <View className={styles.lossInputCol}>
+                        <Text className={styles.lossInputLabel}>装车筐数</Text>
+                        <Text className={styles.lossInputValue}>{rec.originalBaskets}筐</Text>
+                      </View>
+                      <View className={styles.lossInputCol}>
+                        <Text className={styles.lossInputLabel}>到站筐数</Text>
+                        <Input
+                          type="number"
+                          value={rec.arrivalBaskets}
+                          onInput={(e) => handleLossRecordChange(index, 'arrivalBaskets', e.detail.value)}
+                          className={classNames('form-input', styles.lossInput)}
+                        />
+                      </View>
+                      <View className={styles.lossInputCol}>
+                        <Text className={styles.lossInputLabel}>损耗筐数</Text>
+                        <Input
+                          type="number"
+                          value={rec.lossBaskets}
+                          onInput={(e) => handleLossRecordChange(index, 'lossBaskets', e.detail.value)}
+                          className={classNames('form-input', styles.lossInput, { [styles.lossInputDanger]: parseInt(rec.lossBaskets) > 0 })}
+                        />
+                      </View>
+                    </View>
+                    <View className={styles.lossInputRow}>
+                      <View className={styles.lossInputCol}>
+                        <Text className={styles.lossInputLabel}>品质分</Text>
+                        <Input
+                          type="number"
+                          value={rec.qualityScore}
+                          onInput={(e) => handleLossRecordChange(index, 'qualityScore', e.detail.value)}
+                          className={classNames('form-input', styles.lossInput)}
+                        />
+                      </View>
+                      <View style={{ flex: 2 }}>
+                        <Text className={styles.lossInputLabel}>备注</Text>
+                        <Input
+                          value={rec.notes}
+                          onInput={(e) => handleLossRecordChange(index, 'notes', e.detail.value)}
+                          placeholder="选填"
+                          className={classNames('form-input', styles.lossInput)}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <View className="modal-actions">
+                <View className="modal-btn cancel" onClick={() => setShowLossModal(false)}>取消</View>
+                <View className="modal-btn confirm" onClick={handleSaveLossRecords}>保存</View>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     </ScrollView>
   );

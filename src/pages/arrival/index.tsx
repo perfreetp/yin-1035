@@ -24,6 +24,7 @@ interface DetailViewState {
   batch: Batch;
   arrivalRecord?: ArrivalRecord;
   riskRecords: PressureRiskRecord[];
+  reasons?: AbnormalBatch['reasons'];
 }
 
 const ArrivalPage: React.FC = () => {
@@ -168,6 +169,39 @@ const ArrivalPage: React.FC = () => {
 
   const handleSaveLossRecords = () => {
     if (!selectedTransportId) return;
+
+    for (let i = 0; i < lossRecords.length; i++) {
+      const rec = lossRecords[i];
+      const arrival = parseInt(rec.arrivalBaskets) || 0;
+      const loss = parseInt(rec.lossBaskets) || 0;
+      const quality = parseInt(rec.qualityScore) || 0;
+
+      if (arrival + loss !== rec.originalBaskets) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：到站+损耗 ≠ 装车筐数`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+      if (arrival > rec.originalBaskets) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：到站筐数不能超过装车筐数`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+      if (quality < 0 || quality > 100) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：品质分应在 0-100 之间`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+    }
+
     const records: Partial<ArrivalRecord>[] = lossRecords.map(r => {
       const arrival = parseInt(r.arrivalBaskets) || 0;
       const loss = parseInt(r.lossBaskets) || 0;
@@ -203,9 +237,29 @@ const ArrivalPage: React.FC = () => {
       batch: ab.batch,
       arrivalRecord: ab.arrivalRecord,
       riskRecords: ab.riskRecords,
+      reasons: ab.reasons,
     });
     setShowAbnormalModal(false);
     setShowDetailModal(true);
+  };
+
+  const getPrecoolLabel = (status: string): { label: string; icon: string; color: string } => {
+    switch (status) {
+      case 'completed': return { label: '预冷完成', icon: '❄️', color: 'good' };
+      case 'cooling': return { label: '预冷中', icon: '🧊', color: 'normal' };
+      case 'not_started': return { label: '未预冷', icon: '🌡️', color: 'bad' };
+      default: return { label: '未知', icon: '❓', color: 'normal' };
+    }
+  };
+
+  const getSiblingBatches = (transport: Transport, currentBatchId: string) => {
+    const sorted = [...transport.batches].sort((a, b) => a.orderIndex - b.orderIndex);
+    const idx = sorted.findIndex(b => b.id === currentBatchId);
+    if (idx < 0) return { prev: null, next: null };
+    return {
+      prev: idx > 0 ? sorted[idx - 1] : null,
+      next: idx < sorted.length - 1 ? sorted[idx + 1] : null,
+    };
   };
 
   const getStatusText = (status: string): string => {
@@ -642,8 +696,33 @@ const ArrivalPage: React.FC = () => {
               </View>
 
               <ScrollView scrollY className={styles.detailContent}>
+                <View className={styles.reviewCardHeader}>
+                  <View className={styles.reviewCardTitleRow}>
+                    <Text className={styles.reviewCardBatchNo}>{detailState.batch.batchNo}</Text>
+                    <Text className={styles.reviewCardCategory}>{detailState.batch.categoryName}</Text>
+                  </View>
+                  <View className={styles.reviewCardSubtitle}>
+                    <Text>{detailState.transport.transportNo} · {detailState.transport.route}</Text>
+                  </View>
+                  {detailState.reasons && detailState.reasons.length > 0 && (
+                    <View className={styles.reviewCardReasonRow}>
+                      {detailState.reasons.map((r: any) => {
+                        const info = getReasonLabel(r);
+                        return (
+                          <Text
+                            key={r}
+                            className={classNames(styles.reasonTag, styles[`reasonTag-${info.type}`])}
+                          >
+                            {info.icon} {info.label}
+                          </Text>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+
                 <View className={styles.detailSection}>
-                  <Text className={styles.detailSectionTitle}>📦 原始装车信息</Text>
+                  <Text className={styles.detailSectionTitle}>🌱 产地与装车信息</Text>
                   <View className={styles.detailGrid}>
                     <View className={styles.detailGridItem}>
                       <Text className={styles.detailGridLabel}>合作社</Text>
@@ -651,18 +730,86 @@ const ArrivalPage: React.FC = () => {
                     </View>
                     <View className={styles.detailGridItem}>
                       <Text className={styles.detailGridLabel}>基地</Text>
-                      <Text className={styles.detailGridValue}>{detailState.batch.base || detailState.transport.fromBase || '--'}</Text>
+                      <Text className={styles.detailGridValue}>{detailState.batch.base || '--'}</Text>
+                    </View>
+                    <View className={styles.detailGridItem}>
+                      <Text className={styles.detailGridLabel}>地块</Text>
+                      <Text className={styles.detailGridValue}>{detailState.batch.plot || '--'}</Text>
+                    </View>
+                    <View className={styles.detailGridItem}>
+                      <Text className={styles.detailGridLabel}>预冷状态</Text>
+                      <Text
+                        className={styles.detailGridValue}
+                        style={{
+                          color: getPrecoolLabel(detailState.batch.precoolStatus).color === 'good'
+                            ? '#10b981'
+                            : getPrecoolLabel(detailState.batch.precoolStatus).color === 'bad'
+                              ? '#ef4444'
+                              : '#f59e0b',
+                        }}
+                      >
+                        {getPrecoolLabel(detailState.batch.precoolStatus).icon} {getPrecoolLabel(detailState.batch.precoolStatus).label}
+                      </Text>
                     </View>
                     <View className={styles.detailGridItem}>
                       <Text className={styles.detailGridLabel}>装车筐数</Text>
                       <Text className={styles.detailGridValue}>{detailState.batch.basketCount}筐</Text>
                     </View>
                     <View className={styles.detailGridItem}>
-                      <Text className={styles.detailGridLabel}>装车时间</Text>
-                      <Text className={styles.detailGridValue}>{formatDate(detailState.transport.createdAt)}</Text>
+                      <Text className={styles.detailGridLabel}>装载顺序</Text>
+                      <Text className={styles.detailGridValue}>
+                        第 {detailState.batch.orderIndex + 1} 批 / 共 {detailState.transport.batches.length} 批
+                      </Text>
+                    </View>
+                    <View className={styles.detailGridItem}>
+                      <Text className={styles.detailGridLabel}>上车时间</Text>
+                      <Text className={styles.detailGridValue}>
+                        {detailState.batch.loadTime ? formatDate(detailState.batch.loadTime) : '--'}
+                        {detailState.batch.loadTime ? ' ' + formatTime(detailState.batch.loadTime) : ''}
+                      </Text>
                     </View>
                   </View>
+                  {detailState.batch.notes && (
+                    <Text className={styles.detailNote}>装车备注：{detailState.batch.notes}</Text>
+                  )}
                 </View>
+
+                {(() => {
+                  const { prev, next } = getSiblingBatches(detailState.transport, detailState.batch.id);
+                  if (!prev && !next) return null;
+                  return (
+                    <View className={styles.detailSection}>
+                      <Text className={styles.detailSectionTitle}>🚚 同车相邻批次</Text>
+                      <View className={styles.siblingRow}>
+                        {prev ? (
+                          <View className={styles.siblingCard}>
+                            <Text className={styles.siblingLabel}>上一批</Text>
+                            <Text className={styles.siblingName}>{prev.categoryName}</Text>
+                            <Text className={styles.siblingInfo}>
+                              {prev.cooperative} · {prev.basketCount}筐
+                            </Text>
+                          </View>
+                        ) : (
+                          <View className={styles.siblingEmpty} />
+                        )}
+                        <View className={styles.siblingDivider}>
+                          <Text>◀ 中间 ▶</Text>
+                        </View>
+                        {next ? (
+                          <View className={styles.siblingCard}>
+                            <Text className={styles.siblingLabel}>下一批</Text>
+                            <Text className={styles.siblingName}>{next.categoryName}</Text>
+                            <Text className={styles.siblingInfo}>
+                              {next.cooperative} · {next.basketCount}筐
+                            </Text>
+                          </View>
+                        ) : (
+                          <View className={styles.siblingEmpty} />
+                        )}
+                      </View>
+                    </View>
+                  );
+                })()}
 
                 {detailState.riskRecords.length > 0 && (
                   <View className={styles.detailSection}>

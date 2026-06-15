@@ -34,6 +34,8 @@ const StatsPage: React.FC = () => {
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
   const [selectedCoop, setSelectedCoop] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showBatchListModal, setShowBatchListModal] = useState(false);
+  const [batchListFilter, setBatchListFilter] = useState<'high_loss' | 'low_quality' | 'has_risk' | null>(null);
 
   const allBatches = useMemo((): BatchWithTransport[] => {
     const list: BatchWithTransport[] = [];
@@ -283,6 +285,72 @@ const StatsPage: React.FC = () => {
       .sort((a, b) => b.baskets - a.baskets);
   }, [filteredBatches]);
 
+  const abnormalStats = useMemo(() => {
+    let highLossCount = 0;
+    let lowQualityCount = 0;
+    let hasRiskCount = 0;
+    const abnormalSet = new Set<string>();
+
+    filteredBatches.forEach(item => {
+      const { batch, arrivalRecord, riskRecords } = item;
+      let isAbnormal = false;
+
+      if (arrivalRecord && batch.basketCount > 0) {
+        const lossRate = (arrivalRecord.lossBaskets / batch.basketCount) * 100;
+        if (lossRate >= 5) {
+          highLossCount++;
+          isAbnormal = true;
+        }
+      }
+
+      if (arrivalRecord && arrivalRecord.qualityScore > 0 && arrivalRecord.qualityScore < 75) {
+        lowQualityCount++;
+        isAbnormal = true;
+      }
+
+      if (riskRecords.length > 0 || batch.pressureRisk) {
+        hasRiskCount++;
+        isAbnormal = true;
+      }
+
+      if (isAbnormal) {
+        abnormalSet.add(batch.id);
+      }
+    });
+
+    return {
+      total: filteredBatches.length,
+      abnormalCount: abnormalSet.size,
+      highLossCount,
+      lowQualityCount,
+      hasRiskCount,
+    };
+  }, [filteredBatches]);
+
+  const filteredAbnormalBatches = useMemo(() => {
+    if (!batchListFilter) return filteredBatches;
+
+    return filteredBatches.filter(item => {
+      const { batch, arrivalRecord, riskRecords } = item;
+
+      if (batchListFilter === 'high_loss') {
+        if (!arrivalRecord || batch.basketCount === 0) return false;
+        const lossRate = (arrivalRecord.lossBaskets / batch.basketCount) * 100;
+        return lossRate >= 5;
+      }
+
+      if (batchListFilter === 'low_quality') {
+        return arrivalRecord && arrivalRecord.qualityScore > 0 && arrivalRecord.qualityScore < 75;
+      }
+
+      if (batchListFilter === 'has_risk') {
+        return riskRecords.length > 0 || batch.pressureRisk;
+      }
+
+      return false;
+    });
+  }, [filteredBatches, batchListFilter]);
+
   const trendData = useMemo(() => {
     const transportMap = new Map<string, {
       date: string;
@@ -434,6 +502,83 @@ const StatsPage: React.FC = () => {
             icon="⭐"
             color="green"
           />
+        </View>
+
+        <View className={styles.card}>
+          <View className={styles.sectionHeader}>
+            <Text className={styles.sectionTitle}>⚠️ 异常原因分布</Text>
+            <Text className={styles.sectionSubtitle}>
+              共 {abnormalStats.total} 批 · 异常 {abnormalStats.abnormalCount} 批
+            </Text>
+          </View>
+          {abnormalStats.total === 0 ? (
+            <View className={styles.emptyState}>
+              <Text className={styles.emptyIcon}>📊</Text>
+              <Text className={styles.emptyText}>暂无统计数据</Text>
+            </View>
+          ) : (
+            <View className={styles.abnormalBreakdown}>
+              <View
+                className={classNames(styles.abnormalItem, styles.abnormalDanger)}
+                onClick={() => {
+                  setBatchListFilter('high_loss');
+                  setShowBatchListModal(true);
+                }}
+              >
+                <View className={styles.abnormalItemTop}>
+                  <Text className={styles.abnormalItemIcon}>📉</Text>
+                  <Text className={styles.abnormalItemCount}>{abnormalStats.highLossCount}</Text>
+                </View>
+                <Text className={styles.abnormalItemLabel}>高损耗</Text>
+                <View className={styles.abnormalItemBar}>
+                  <View
+                    className={styles.abnormalItemBarFill}
+                    style={{ width: `${abnormalStats.total > 0 ? (abnormalStats.highLossCount / abnormalStats.total) * 100 : 0}%` }}
+                  />
+                </View>
+              </View>
+
+              <View
+                className={classNames(styles.abnormalItem, styles.abnormalWarn)}
+                onClick={() => {
+                  setBatchListFilter('low_quality');
+                  setShowBatchListModal(true);
+                }}
+              >
+                <View className={styles.abnormalItemTop}>
+                  <Text className={styles.abnormalItemIcon}>⭐</Text>
+                  <Text className={styles.abnormalItemCount}>{abnormalStats.lowQualityCount}</Text>
+                </View>
+                <Text className={styles.abnormalItemLabel}>品质偏低</Text>
+                <View className={styles.abnormalItemBar}>
+                  <View
+                    className={styles.abnormalItemBarFill}
+                    style={{ width: `${abnormalStats.total > 0 ? (abnormalStats.lowQualityCount / abnormalStats.total) * 100 : 0}%` }}
+                  />
+                </View>
+              </View>
+
+              <View
+                className={classNames(styles.abnormalItem, styles.abnormalRisk)}
+                onClick={() => {
+                  setBatchListFilter('has_risk');
+                  setShowBatchListModal(true);
+                }}
+              >
+                <View className={styles.abnormalItemTop}>
+                  <Text className={styles.abnormalItemIcon}>⚠️</Text>
+                  <Text className={styles.abnormalItemCount}>{abnormalStats.hasRiskCount}</Text>
+                </View>
+                <Text className={styles.abnormalItemLabel}>压筐风险</Text>
+                <View className={styles.abnormalItemBar}>
+                  <View
+                    className={styles.abnormalItemBarFill}
+                    style={{ width: `${abnormalStats.total > 0 ? (abnormalStats.hasRiskCount / abnormalStats.total) * 100 : 0}%` }}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         <View className={styles.tabBar}>
@@ -689,6 +834,110 @@ const StatsPage: React.FC = () => {
               <View className="modal-actions">
                 <View className="modal-btn cancel" onClick={() => setShowFilterModal(false)}>取消</View>
                 <View className="modal-btn confirm" onClick={() => setShowFilterModal(false)}>确定</View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {showBatchListModal && (
+          <View
+            className="modal-mask"
+            onClick={() => {
+              setShowBatchListModal(false);
+              setBatchListFilter(null);
+            }}
+            style={{ alignItems: 'flex-end' }}
+          >
+            <View
+              className={styles.batchListSheet}
+              onClick={e => e.stopPropagation()}
+            >
+              <View className={styles.batchListHeader}>
+                <View>
+                  <Text className="modal-title">
+                    {batchListFilter === 'high_loss' && '📉 高损耗批次'}
+                    {batchListFilter === 'low_quality' && '⭐ 品质偏低批次'}
+                    {batchListFilter === 'has_risk' && '⚠️ 压筐风险批次'}
+                  </Text>
+                  <Text style={{ fontSize: '24rpx', color: '#64748b', marginTop: '8rpx' }}>
+                    共 {filteredAbnormalBatches.length} 批
+                  </Text>
+                </View>
+                <Text
+                  style={{ fontSize: '40rpx', color: '#94a3b8' }}
+                  onClick={() => {
+                    setShowBatchListModal(false);
+                    setBatchListFilter(null);
+                  }}
+                >
+                  ✕
+                </Text>
+              </View>
+
+              <ScrollView scrollY className={styles.batchListContent}>
+                {filteredAbnormalBatches.length === 0 ? (
+                  <View className={styles.emptyState}>
+                    <Text className={styles.emptyIcon}>📋</Text>
+                    <Text className={styles.emptyText}>暂无相关批次</Text>
+                  </View>
+                ) : (
+                  filteredAbnormalBatches.map(item => (
+                    <View
+                      key={item.batch.id}
+                      className={styles.batchListItem}
+                      onClick={() => {
+                        setShowBatchListModal(false);
+                        setBatchListFilter(null);
+                        Taro.navigateTo({
+                          url: `/pages/transport-detail/index?id=${item.transport.id}`,
+                        });
+                      }}
+                    >
+                      <View className={styles.batchListItemTop}>
+                        <Text className={styles.batchListBatchNo}>{item.batch.batchNo}</Text>
+                        <Text className={styles.batchListCategory}>{item.batch.categoryName}</Text>
+                      </View>
+                      <View className={styles.batchListItemMid}>
+                        <Text className={styles.batchListInfo}>
+                          {item.batch.cooperative} · {item.batch.base}
+                        </Text>
+                        <Text className={styles.batchListRoute}>{item.routeName}</Text>
+                      </View>
+                      <View className={styles.batchListItemBottom}>
+                        <Text className={styles.batchListBaskets}>
+                          {item.batch.basketCount}筐
+                        </Text>
+                        {batchListFilter === 'high_loss' && item.arrivalRecord && (
+                          <Text className={classNames(styles.batchListMetric, 'danger')}>
+                            损耗 {item.arrivalRecord.lossRate.toFixed(1)}%
+                          </Text>
+                        )}
+                        {batchListFilter === 'low_quality' && item.arrivalRecord && (
+                          <Text className={classNames(styles.batchListMetric, 'warn')}>
+                            品质 {item.arrivalRecord.qualityScore}分
+                          </Text>
+                        )}
+                        {batchListFilter === 'has_risk' && (
+                          <Text className={classNames(styles.batchListMetric, 'risk')}>
+                            {item.riskRecords.length} 条风险记录
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+
+              <View className="modal-actions">
+                <View
+                  className="modal-btn cancel"
+                  onClick={() => {
+                    setShowBatchListModal(false);
+                    setBatchListFilter(null);
+                  }}
+                >
+                  关闭
+                </View>
               </View>
             </View>
           </View>

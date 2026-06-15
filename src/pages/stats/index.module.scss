@@ -556,3 +556,203 @@
     background: linear-gradient(180deg, #fca5a5 0%, #dc2626 100%);
   }
 }
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: $spacing-md;
+}
+
+.sectionSubtitle {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.abnormalBreakdown {
+  display: flex;
+  gap: $spacing-sm;
+}
+
+.abnormalItem {
+  flex: 1;
+  padding: $spacing-md;
+  border-radius: $radius-md;
+  background: $color-bg-page;
+  border: 2rpx solid $color-divider;
+  transition: all 0.2s;
+
+  &:active {
+    transform: scale(0.97);
+    opacity: 0.85;
+  }
+
+  &.abnormalDanger {
+    border-color: #fecaca;
+    background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%);
+
+    .abnormalItemCount { color: #dc2626; }
+    .abnormalItemBarFill { background: #ef4444; }
+  }
+
+  &.abnormalWarn {
+    border-color: #fde68a;
+    background: linear-gradient(135deg, #fffbeb 0%, #fff7ed 100%);
+
+    .abnormalItemCount { color: #d97706; }
+    .abnormalItemBarFill { background: #f59e0b; }
+  }
+
+  &.abnormalRisk {
+    border-color: #e9d5ff;
+    background: linear-gradient(135deg, #fdf4ff 0%, #faf5ff 100%);
+
+    .abnormalItemCount { color: #9333ea; }
+    .abnormalItemBarFill { background: #a855f7; }
+  }
+}
+
+.abnormalItemTop {
+  display: flex;
+  align-items: baseline;
+  gap: 8rpx;
+  margin-bottom: 8rpx;
+}
+
+.abnormalItemIcon {
+  font-size: 28rpx;
+}
+
+.abnormalItemCount {
+  font-size: 40rpx;
+  font-weight: $font-weight-bold;
+}
+
+.abnormalItemLabel {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  margin-bottom: $spacing-sm;
+  display: block;
+}
+
+.abnormalItemBar {
+  height: 8rpx;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4rpx;
+  overflow: hidden;
+}
+
+.abnormalItemBarFill {
+  height: 100%;
+  border-radius: 4rpx;
+  transition: width 0.3s ease;
+}
+
+.batchListSheet {
+  width: 100%;
+  max-height: 80vh;
+  background: $color-bg-card;
+  border-radius: 32rpx 32rpx 0 0;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.25s ease-out;
+}
+
+.batchListHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: $spacing-lg;
+  border-bottom: 2rpx solid $color-divider;
+  flex-shrink: 0;
+}
+
+.batchListContent {
+  flex: 1;
+  min-height: 0;
+  padding: $spacing-md $spacing-lg;
+}
+
+.batchListItem {
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  padding: $spacing-md;
+  margin-bottom: $spacing-sm;
+  border: 2rpx solid $color-divider;
+
+  &:active {
+    background: #f1f5f9;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.batchListItemTop {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-sm;
+  margin-bottom: 8rpx;
+}
+
+.batchListBatchNo {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.batchListCategory {
+  font-size: $font-size-sm;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.08);
+  padding: 2rpx 12rpx;
+  border-radius: 16rpx;
+}
+
+.batchListItemMid {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8rpx;
+}
+
+.batchListInfo {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.batchListRoute {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.batchListItemBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8rpx;
+  border-top: 1rpx solid rgba(0, 0, 0, 0.05);
+}
+
+.batchListBaskets {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.batchListMetric {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+
+  &.danger { color: #dc2626; }
+  &.warn { color: #d97706; }
+  &.risk { color: #9333ea; }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}

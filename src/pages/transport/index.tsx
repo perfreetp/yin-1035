@@ -255,6 +255,39 @@ const TransportPage: React.FC = () => {
 
   const handleSaveLossRecords = () => {
     if (!activeTransportId || !activeTransport) return;
+
+    for (let i = 0; i < lossRecords.length; i++) {
+      const rec = lossRecords[i];
+      const arrival = parseInt(rec.arrivalBaskets) || 0;
+      const loss = parseInt(rec.lossBaskets) || 0;
+      const quality = parseInt(rec.qualityScore) || 0;
+
+      if (arrival + loss !== rec.originalBaskets) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：到站+损耗 ≠ 装车筐数`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+      if (arrival > rec.originalBaskets) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：到站筐数不能超过装车筐数`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+      if (quality < 0 || quality > 100) {
+        Taro.showToast({
+          title: `第${i + 1}批 ${rec.categoryName}：品质分应在 0-100 之间`,
+          icon: 'none',
+          duration: 2000,
+        });
+        return;
+      }
+    }
+
     const records: Partial<ArrivalRecord>[] = lossRecords.map(r => {
       const arrival = parseInt(r.arrivalBaskets) || 0;
       const loss = parseInt(r.lossBaskets) || 0;
