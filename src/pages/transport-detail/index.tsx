@@ -4,6 +4,7 @@ import Taro, { useRouter } from '@tarojs/taro';
 import classNames from 'classnames';
 import { useAppStore } from '@/store/useAppStore';
 import { formatDateTime, formatTime, formatDate } from '@/utils/date';
+import { isPhotoValid, chooseImageAsBase64 } from '@/utils/image';
 import {
   TransportStatus, TempHumidityRecord, CoolerRecord,
   SealRecord, PressureRiskRecord, ArrivalRecord
@@ -14,7 +15,7 @@ type RecordTabType = 'temp' | 'cooler' | 'seal' | 'pressure' | 'loss';
 
 const TransportDetailPage: React.FC = () => {
   const router = useRouter();
-  const { transports } = useAppStore();
+  const { transports, updateSealRecord } = useAppStore();
   const [activeTab, setActiveTab] = useState<RecordTabType>('temp');
 
   const transportId = router.params.id;
@@ -103,6 +104,16 @@ const TransportDetailPage: React.FC = () => {
     Taro.previewImage({ urls: [url], current: url });
   };
 
+  const handleRetakeSealPhoto = async (sealId: string) => {
+    try {
+      const base64 = await chooseImageAsBase64(['album', 'camera']);
+      updateSealRecord(transportId!, sealId, { photoUrl: base64 });
+      Taro.showToast({ title: '补拍成功', icon: 'success' });
+    } catch (e) {
+      console.error('[TransportDetail] retakeSealPhoto error:', e);
+    }
+  };
+
   if (!transport) {
     return (
       <ScrollView scrollY className={styles.page}>
@@ -182,13 +193,25 @@ const TransportDetailPage: React.FC = () => {
       ) : (
         sortedSealRecords.map((record: SealRecord) => (
           <View key={record.id} className={styles.recordItem}>
-            {record.photoUrl && (
+            {record.photoUrl && isPhotoValid(record.photoUrl) ? (
               <Image
                 className={styles.sealThumb}
                 src={record.photoUrl}
                 mode="aspectFill"
                 onClick={() => handlePreviewImage(record.photoUrl!)}
               />
+            ) : record.photoUrl ? (
+              <View className={styles.sealThumbInvalid} onClick={() => handleRetakeSealPhoto(record.id)}>
+                <Text style={{ fontSize: '40rpx' }}>🖼️</Text>
+                <Text style={{ fontSize: '22rpx', color: '#f59e0b', marginTop: '8rpx' }}>照片失效</Text>
+                <Text style={{ fontSize: '20rpx', color: '#94a3b8', marginTop: '4rpx' }}>点击补拍</Text>
+              </View>
+            ) : (
+              <View className={styles.sealThumbInvalid} onClick={() => handleRetakeSealPhoto(record.id)}>
+                <Text style={{ fontSize: '40rpx' }}>📷</Text>
+                <Text style={{ fontSize: '22rpx', color: '#94a3b8', marginTop: '8rpx' }}>未拍照</Text>
+                <Text style={{ fontSize: '20rpx', color: '#94a3b8', marginTop: '4rpx' }}>点击补拍</Text>
+              </View>
             )}
             <View className={classNames(styles.recordIcon, styles.seal)}>🔒</View>
             <View className={styles.recordContent}>
@@ -196,8 +219,12 @@ const TransportDetailPage: React.FC = () => {
               {record.notes && (
                 <Text className={styles.recordSub}>{record.notes}</Text>
               )}
-              {record.photoUrl && (
+              {record.photoUrl && isPhotoValid(record.photoUrl) ? (
                 <Text className={styles.recordSub}>📷 含照片（点击查看）</Text>
+              ) : record.photoUrl ? (
+                <Text className={classNames(styles.recordSub, styles.warn)}>⚠️ 照片已失效，点击补拍</Text>
+              ) : (
+                <Text className={classNames(styles.recordSub, styles.warn)}>⚠️ 未拍照片，点击补拍</Text>
               )}
             </View>
             <Text className={styles.recordTime}>{formatTime(record.timestamp)}</Text>

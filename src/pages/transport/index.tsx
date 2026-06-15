@@ -4,6 +4,7 @@ import Taro from '@tarojs/taro';
 import classNames from 'classnames';
 import { useAppStore } from '@/store/useAppStore';
 import { formatTime } from '@/utils/date';
+import { isPhotoValid, chooseImageAsBase64 } from '@/utils/image';
 import {
   CoolerRecord, TempHumidityRecord, SealRecord,
   PressureRiskRecord, PressureRiskPosition, ArrivalRecord, Batch
@@ -18,6 +19,7 @@ const TransportPage: React.FC = () => {
     addCoolerRecord,
     addTempHumidity,
     addSealRecord,
+    updateSealRecord,
     addPressureRiskRecord,
     batchUpdateArrivalRecords,
     updateTransportStatus,
@@ -136,18 +138,21 @@ const TransportPage: React.FC = () => {
 
   const handleChooseSealPhoto = async () => {
     try {
-      const res = await Taro.chooseImage({
-        count: 1,
-        sizeType: ['compressed'],
-        sourceType: ['album', 'camera'],
-      });
-      if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-        const filePath = res.tempFilePaths[0];
-        setSealPhoto(filePath);
-        Taro.showToast({ title: '照片已选', icon: 'success' });
-      }
+      const base64 = await chooseImageAsBase64(['album', 'camera']);
+      setSealPhoto(base64);
+      Taro.showToast({ title: '照片已选', icon: 'success' });
     } catch (e) {
-      console.error('[Transport] chooseImage error:', e);
+      console.error('[Transport] chooseSealPhoto error:', e);
+    }
+  };
+
+  const handleRetakeSealPhoto = async (sealId: string) => {
+    try {
+      const base64 = await chooseImageAsBase64(['album', 'camera']);
+      updateSealRecord(activeTransportId!, sealId, { photoUrl: base64 });
+      Taro.showToast({ title: '补拍成功', icon: 'success' });
+    } catch (e) {
+      console.error('[Transport] retakeSealPhoto error:', e);
     }
   };
 
@@ -425,13 +430,25 @@ const TransportPage: React.FC = () => {
                 <View className={styles.recordList}>
                   {sortedSealRecords.slice(0, 10).map((record: SealRecord) => (
                     <View key={record.id} className={styles.recordItem}>
-                      {record.photoUrl && (
+                      {record.photoUrl && isPhotoValid(record.photoUrl) ? (
                         <Image
                           className={styles.sealPhoto}
                           src={record.photoUrl}
                           mode="aspectFill"
                           onClick={() => handlePreviewSealPhoto(record.photoUrl!)}
                         />
+                      ) : record.photoUrl ? (
+                        <View className={styles.sealPhotoInvalid} onClick={() => handleRetakeSealPhoto(record.id)}>
+                          <Text className={styles.sealPhotoInvalidIcon}>🖼️</Text>
+                          <Text className={styles.sealPhotoInvalidText}>照片失效</Text>
+                          <Text className={styles.sealPhotoInvalidHint}>点击补拍</Text>
+                        </View>
+                      ) : (
+                        <View className={styles.sealPhotoMissing} onClick={() => handleRetakeSealPhoto(record.id)}>
+                          <Text className={styles.sealPhotoInvalidIcon}>📷</Text>
+                          <Text className={styles.sealPhotoInvalidText}>未拍照</Text>
+                          <Text className={styles.sealPhotoInvalidHint}>点击补拍</Text>
+                        </View>
                       )}
                       <Text className={styles.recordTime}>{formatTime(record.timestamp)}</Text>
                       <View className={styles.recordContent}>
@@ -439,8 +456,12 @@ const TransportPage: React.FC = () => {
                         {record.notes && (
                           <Text className={styles.recordSub}>{record.notes}</Text>
                         )}
-                        {record.photoUrl && (
+                        {record.photoUrl && isPhotoValid(record.photoUrl) ? (
                           <Text className={styles.recordSub}>📷 已拍照片</Text>
+                        ) : record.photoUrl ? (
+                          <Text className={classNames(styles.recordSub, styles.warn)}>⚠️ 照片已失效，请补拍</Text>
+                        ) : (
+                          <Text className={classNames(styles.recordSub, styles.warn)}>⚠️ 未拍照片</Text>
                         )}
                       </View>
                     </View>
@@ -760,6 +781,14 @@ const TransportPage: React.FC = () => {
               </Text>
             </View>
             <ScrollView scrollY className={styles.lossList}>
+              {sortedPressureRiskRecords.length > 0 && (
+                <View className={styles.riskTipBar}>
+                  <Text className={styles.riskTipIcon}>⚠️</Text>
+                  <Text className={styles.riskTipText}>
+                    运输中有 {sortedPressureRiskRecords.length} 条压筐风险记录，请重点核对
+                  </Text>
+                </View>
+              )}
               {lossRecords.length === 0 && activeTransport?.batches.length! > 0 && (
                 <View style={{ padding: '32rpx', textAlign: 'center' }}>
                   <Text onClick={initLossRecords} style={{ color: '#0ea5e9' }}>
@@ -767,13 +796,34 @@ const TransportPage: React.FC = () => {
                   </Text>
                 </View>
               )}
-              {lossRecords.map((rec, index) => (
-                <View key={rec.batchId} className={styles.lossItem}>
-                  <View className={styles.lossItemHeader}>
-                    <Text className={styles.lossCategoryName}>{rec.categoryName}</Text>
-                    <Text className={styles.lossBatchNo}>{rec.batchNo}</Text>
-                  </View>
-                  <View style={{ display: 'flex', gap: '12rpx', marginBottom: '12rpx' }}>
+              {lossRecords.map((rec, index) => {
+                const batchRisks = sortedPressureRiskRecords.filter(
+                  r => r.batchId === rec.batchId || (!r.batchId && r.categoryName === rec.categoryName)
+                );
+                return (
+                  <View key={rec.batchId} className={styles.lossItem}>
+                    <View className={styles.lossItemHeader}>
+                      <Text className={styles.lossCategoryName}>{rec.categoryName}</Text>
+                      <Text className={styles.lossBatchNo}>{rec.batchNo}</Text>
+                    </View>
+                    {batchRisks.length > 0 && (
+                      <View className={styles.riskBadgeRow}>
+                        {batchRisks.map(risk => (
+                          <View key={risk.id} className={styles.riskBadge}>
+                            <Text className={styles.riskBadgeIcon}>
+                              {risk.position === 'top' ? '🔝' : '⬇️'}
+                            </Text>
+                            <Text className={styles.riskBadgeText}>
+                              {risk.position === 'top' ? '顶层' : '底层'}压筐风险
+                            </Text>
+                            {risk.notes && (
+                              <Text className={styles.riskBadgeNote}>{risk.notes}</Text>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    <View style={{ display: 'flex', gap: '12rpx', marginBottom: '12rpx' }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>装车筐数</Text>
                       <Text style={{ fontSize: '28rpx', fontWeight: '600', color: '#0f172a' }}>

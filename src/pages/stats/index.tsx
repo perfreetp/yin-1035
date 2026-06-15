@@ -8,6 +8,7 @@ import StatCard from '@/components/StatCard';
 import styles from './index.module.scss';
 
 type StatTabType = 'cooperative' | 'base' | 'route';
+type DateRangeType = '7d' | '30d' | 'all';
 
 interface RankItem {
   name: string;
@@ -18,24 +19,68 @@ interface RankItem {
 }
 
 const StatsPage: React.FC = () => {
-  const { transports } = useAppStore();
+  const { transports, cooperatives } = useAppStore();
   const [activeTab, setActiveTab] = useState<StatTabType>('cooperative');
+  const [dateRange, setDateRange] = useState<DateRangeType>('all');
+  const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+  const [selectedCoop, setSelectedCoop] = useState<string | null>(null);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   const arrivedTransports = useMemo(() => {
     return transports.filter(t => t.status === 'arrived');
   }, [transports]);
 
+  const allRoutes = useMemo(() => {
+    const routes = new Set<string>();
+    transports.forEach(t => {
+      const routeName = t.route || `${t.fromBase}-${t.toMarket}`;
+      if (routeName && routeName !== '-') {
+        routes.add(routeName);
+      }
+    });
+    return Array.from(routes).sort();
+  }, [transports]);
+
+  const filteredTransports = useMemo(() => {
+    let list = [...arrivedTransports];
+
+    if (dateRange !== 'all') {
+      const days = dateRange === '7d' ? 7 : 30;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      list = list.filter(t => {
+        const dateStr = t.arrivalTime || t.createdAt;
+        return new Date(dateStr).getTime() >= cutoff.getTime();
+      });
+    }
+
+    if (selectedRoute) {
+      list = list.filter(t => {
+        const routeName = t.route || `${t.fromBase}-${t.toMarket}`;
+        return routeName === selectedRoute;
+      });
+    }
+
+    if (selectedCoop) {
+      list = list.filter(t => {
+        return t.batches.some(b => b.cooperative === selectedCoop);
+      });
+    }
+
+    return list;
+  }, [arrivedTransports, dateRange, selectedRoute, selectedCoop]);
+
   const overallStats = useMemo(() => {
-    const total = arrivedTransports.length;
-    const totalBaskets = arrivedTransports.reduce((sum, t) => sum + t.totalBaskets, 0);
+    const total = filteredTransports.length;
+    const totalBaskets = filteredTransports.reduce((sum, t) => sum + t.totalBaskets, 0);
     const avgLossRate = total > 0
-      ? (arrivedTransports.reduce((sum, t) => sum + (t.lossRate || 0), 0) / total).toFixed(2)
+      ? (filteredTransports.reduce((sum, t) => sum + (t.lossRate || 0), 0) / total).toFixed(2)
       : '0';
     const avgQuality = total > 0
-      ? (arrivedTransports.reduce((sum, t) => sum + (t.qualityScore || 0), 0) / total).toFixed(1)
+      ? (filteredTransports.reduce((sum, t) => sum + (t.qualityScore || 0), 0) / total).toFixed(1)
       : '0';
     return { total, totalBaskets, avgLossRate, avgQuality };
-  }, [arrivedTransports]);
+  }, [filteredTransports]);
 
   const byCooperative = useMemo((): RankItem[] => {
     interface AggData {
@@ -47,7 +92,7 @@ const StatsPage: React.FC = () => {
     }
     const map = new Map<string, AggData>();
 
-    arrivedTransports.forEach(transport => {
+    filteredTransports.forEach(transport => {
       transport.batches.forEach(batch => {
         const coopName = batch.cooperative || '未知合作社';
         if (!map.has(coopName)) {
@@ -89,7 +134,7 @@ const StatsPage: React.FC = () => {
         };
       })
       .sort((a, b) => b.baskets - a.baskets);
-  }, [arrivedTransports]);
+  }, [filteredTransports]);
 
   const byBase = useMemo((): RankItem[] => {
     interface AggData {
@@ -101,7 +146,7 @@ const StatsPage: React.FC = () => {
     }
     const map = new Map<string, AggData>();
 
-    arrivedTransports.forEach(transport => {
+    filteredTransports.forEach(transport => {
       transport.batches.forEach(batch => {
         const baseName = batch.base || transport.fromBase || '未知基地';
         if (!map.has(baseName)) {
@@ -143,11 +188,11 @@ const StatsPage: React.FC = () => {
         };
       })
       .sort((a, b) => b.baskets - a.baskets);
-  }, [arrivedTransports]);
+  }, [filteredTransports]);
 
   const byRoute = useMemo((): RankItem[] => {
     const map = new Map<string, { count: number; baskets: number; lossSum: number; scoreSum: number }>();
-    arrivedTransports.forEach(t => {
+    filteredTransports.forEach(t => {
       const routeName = t.route || `${t.fromBase}-${t.toMarket}` || '未知线路';
       const existing = map.get(routeName) || { count: 0, baskets: 0, lossSum: 0, scoreSum: 0 };
       map.set(routeName, {
@@ -166,10 +211,10 @@ const StatsPage: React.FC = () => {
         qualityScore: data.count > 0 ? parseFloat((data.scoreSum / data.count).toFixed(1)) : 0,
       }))
       .sort((a, b) => b.baskets - a.baskets);
-  }, [arrivedTransports]);
+  }, [filteredTransports]);
 
   const qualityTrend = useMemo(() => {
-    const last7 = arrivedTransports.slice(0, 7).reverse();
+    const last7 = filteredTransports.slice(0, 7).reverse();
     const maxLoss = Math.max(...last7.map(t => t.lossRate || 0), 5);
     return last7.map(t => ({
       date: formatDate(t.arrivalTime || t.createdAt, 'MM/DD'),
@@ -178,7 +223,7 @@ const StatsPage: React.FC = () => {
       scoreHeight: `${((t.qualityScore || 0) / 100) * 100}%`,
       lossHeight: `${((t.lossRate || 0) / maxLoss) * 100}%`,
     }));
-  }, [arrivedTransports]);
+  }, [filteredTransports]);
 
   const currentRankList = useMemo(() => {
     switch (activeTab) {
@@ -212,6 +257,30 @@ const StatsPage: React.FC = () => {
           <Text className={styles.headerSubtitle}>
             共 {overallStats.total} 趟运输 · {overallStats.totalBaskets} 筐蔬菜
           </Text>
+        </View>
+
+        <View className={styles.filterBar} onClick={() => setShowFilterModal(true)}>
+          <View className={styles.filterItem}>
+            <Text className={styles.filterLabel}>日期</Text>
+            <Text className={styles.filterValue}>
+              {dateRange === '7d' ? '近7天' : dateRange === '30d' ? '近30天' : '全部'}
+            </Text>
+          </View>
+          <View className={styles.filterItem}>
+            <Text className={styles.filterLabel}>线路</Text>
+            <Text className={styles.filterValue}>
+              {selectedRoute || '全部'}
+            </Text>
+          </View>
+          <View className={styles.filterItem}>
+            <Text className={styles.filterLabel}>合作社</Text>
+            <Text className={styles.filterValue}>
+              {selectedCoop || '全部'}
+            </Text>
+          </View>
+          <View className={styles.filterBtn}>
+            <Text>🔍 筛选</Text>
+          </View>
         </View>
 
         <View className={styles.statGrid}>
@@ -346,6 +415,101 @@ const StatsPage: React.FC = () => {
           </View>
           <Text className={styles.exportDesc}>数据保存在本地，可导出为表格</Text>
         </View>
+
+        {showFilterModal && (
+          <View
+            className="modal-mask"
+            onClick={() => setShowFilterModal(false)}
+            style={{ alignItems: 'flex-end' }}
+          >
+            <View
+              className={styles.filterSheet}
+              onClick={e => e.stopPropagation()}
+            >
+              <View className={styles.filterSheetHeader}>
+                <Text className="modal-title">筛选条件</Text>
+                <Text
+                  style={{ fontSize: '26rpx', color: '#0ea5e9' }}
+                  onClick={() => {
+                    setDateRange('all');
+                    setSelectedRoute(null);
+                    setSelectedCoop(null);
+                  }}
+                >
+                  重置
+                </Text>
+              </View>
+
+              <ScrollView scrollY className={styles.filterContent}>
+                <View className={styles.filterSection}>
+                  <Text className={styles.filterSectionTitle}>时间范围</Text>
+                  <View className={styles.filterOptionRow}>
+                    {[
+                      { key: '7d', label: '近7天' },
+                      { key: '30d', label: '近30天' },
+                      { key: 'all', label: '全部' },
+                    ].map(opt => (
+                      <View
+                        key={opt.key}
+                        className={classNames(styles.filterOption, { [styles.active]: dateRange === opt.key })}
+                        onClick={() => setDateRange(opt.key as DateRangeType)}
+                      >
+                        {opt.label}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                <View className={styles.filterSection}>
+                  <Text className={styles.filterSectionTitle}>线路</Text>
+                  <View className={styles.filterOptionWrap}>
+                    <View
+                      className={classNames(styles.filterOption, { [styles.active]: !selectedRoute })}
+                      onClick={() => setSelectedRoute(null)}
+                    >
+                      全部线路
+                    </View>
+                    {allRoutes.map(route => (
+                      <View
+                        key={route}
+                        className={classNames(styles.filterOption, { [styles.active]: selectedRoute === route })}
+                        onClick={() => setSelectedRoute(route)}
+                      >
+                        {route}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                <View className={styles.filterSection}>
+                  <Text className={styles.filterSectionTitle}>合作社</Text>
+                  <View className={styles.filterOptionWrap}>
+                    <View
+                      className={classNames(styles.filterOption, { [styles.active]: !selectedCoop })}
+                      onClick={() => setSelectedCoop(null)}
+                    >
+                      全部合作社
+                    </View>
+                    {cooperatives.map(coop => (
+                      <View
+                        key={coop.id}
+                        className={classNames(styles.filterOption, { [styles.active]: selectedCoop === coop.name })}
+                        onClick={() => setSelectedCoop(coop.name)}
+                      >
+                        {coop.name}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View className="modal-actions">
+                <View className="modal-btn cancel" onClick={() => setShowFilterModal(false)}>取消</View>
+                <View className="modal-btn confirm" onClick={() => setShowFilterModal(false)}>确定</View>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     </ScrollView>
   );

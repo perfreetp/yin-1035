@@ -366,6 +366,28 @@
   flex-shrink: 0;
 }
 
+.sealThumbInvalid {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 12rpx;
+  margin-right: 16rpx;
+  background: #fef3c7;
+  border: 2rpx dashed #f59e0b;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  &:active {
+    background: #fde68a;
+  }
+}
+
+.warn {
+  color: #f59e0b !important;
+}
+
 .recordIcon {
   &.pressure {
     background: #fee2e2;

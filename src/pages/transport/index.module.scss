@@ -497,6 +497,54 @@
   background: $color-divider;
 }
 
+.sealPhotoInvalid,
+.sealPhotoMissing {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: $radius-sm;
+  flex-shrink: 0;
+  margin-right: $spacing-md;
+  background: #fef3c7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2rpx dashed #f59e0b;
+
+  &:active {
+    background: #fde68a;
+  }
+}
+
+.sealPhotoMissing {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+
+  &:active {
+    background: #e2e8f0;
+  }
+}
+
+.sealPhotoInvalidIcon {
+  font-size: 36rpx;
+}
+
+.sealPhotoInvalidText {
+  font-size: 20rpx;
+  color: #d97706;
+  margin-top: 4rpx;
+}
+
+.sealPhotoInvalidHint {
+  font-size: 18rpx;
+  color: #94a3b8;
+  margin-top: 2rpx;
+}
+
+.warn {
+  color: #f59e0b !important;
+}
+
 .photoPickerBtn {
   width: 140rpx;
   height: 140rpx;
@@ -643,5 +691,62 @@
 .lossBatchNo {
   font-size: $font-size-xs;
   color: $color-text-tertiary;
+}
+
+.riskTipBar {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 20rpx 24rpx;
+  background: #fffbeb;
+  border-radius: $radius-md;
+  margin-bottom: $spacing-md;
+  border: 2rpx solid #fde68a;
+}
+
+.riskTipIcon {
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+
+.riskTipText {
+  font-size: $font-size-sm;
+  color: #92400e;
+  flex: 1;
+  line-height: 1.4;
+}
+
+.riskBadgeRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-bottom: $spacing-sm;
+}
+
+.riskBadge {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 16rpx;
+  background: #fef2f2;
+  border-radius: $radius-sm;
+  border: 2rpx solid #fecaca;
+}
+
+.riskBadgeIcon {
+  font-size: 24rpx;
+  flex-shrink: 0;
+}
+
+.riskBadgeText {
+  font-size: $font-size-xs;
+  color: #dc2626;
+  font-weight: $font-weight-medium;
+}
+
+.riskBadgeNote {
+  font-size: $font-size-xs;
+  color: #94a3b8;
+  margin-left: 8rpx;
 }
 

@@ -331,3 +331,141 @@
   font-size: $font-size-sm;
   color: $color-text-tertiary;
 }
+
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-md;
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  margin-bottom: $spacing-md;
+  border: 2rpx solid $color-divider;
+
+  &:active {
+    background: #f8fafc;
+  }
+}
+
+.filterItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+  border-right: 2rpx solid $color-divider;
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.filterLabel {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+}
+
+.filterValue {
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+  max-width: 120rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filterBtn {
+  padding: 12rpx 20rpx;
+  background: $color-primary;
+  color: $color-text-white;
+  border-radius: $radius-sm;
+  font-size: $font-size-xs;
+  flex-shrink: 0;
+
+  &:active {
+    opacity: 0.9;
+  }
+}
+
+.filterSheet {
+  width: 100%;
+  max-height: 80vh;
+  background: $color-bg-card;
+  border-radius: 32rpx 32rpx 0 0;
+  padding: $spacing-lg;
+  padding-bottom: calc(#{$spacing-lg} + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.25s ease-out;
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+}
+
+.filterSheetHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing-md;
+  flex-shrink: 0;
+}
+
+.filterContent {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: $spacing-md;
+}
+
+.filterSection {
+  margin-bottom: $spacing-lg;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.filterSectionTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: $spacing-md;
+}
+
+.filterOptionRow {
+  display: flex;
+  gap: $spacing-sm;
+}
+
+.filterOptionWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-sm;
+}
+
+.filterOption {
+  padding: 16rpx 28rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  border: 2rpx solid transparent;
+  transition: all $transition-base;
+
+  &.active {
+    background: $color-primary-soft;
+    color: $color-primary;
+    border-color: $color-primary;
+    font-weight: $font-weight-medium;
+  }
+
+  &:active {
+    background: #f1f5f9;
+  }
+}

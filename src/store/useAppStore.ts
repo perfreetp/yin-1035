@@ -31,6 +31,7 @@ interface AppState {
   addTempHumidity: (transportId: string, record: Partial<TempHumidityRecord>) => TempHumidityRecord;
   addCoolerRecord: (transportId: string, record: Partial<CoolerRecord>) => CoolerRecord;
   addSealRecord: (transportId: string, record: Partial<SealRecord>) => SealRecord;
+  updateSealRecord: (transportId: string, sealId: string, updates: Partial<SealRecord>) => void;
   addPressureRiskRecord: (transportId: string, record: Partial<PressureRiskRecord>) => PressureRiskRecord;
   addArrivalRecord: (transportId: string, record: Partial<ArrivalRecord>) => ArrivalRecord;
   batchUpdateArrivalRecords: (transportId: string, records: Partial<ArrivalRecord>[]) => void;
@@ -216,6 +217,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().updateTransport(transportId, { sealRecords });
     console.log('[Store] addSealRecord:', newRecord.sealNo);
     return newRecord;
+  },
+
+  updateSealRecord: (transportId, sealId, updates) => {
+    const transport = get().transports.find(t => t.id === transportId);
+    if (!transport) return;
+
+    const sealRecords = transport.sealRecords.map(r =>
+      r.id === sealId ? { ...r, ...updates } : r
+    );
+    get().updateTransport(transportId, { sealRecords });
+    console.log('[Store] updateSealRecord:', sealId);
   },
 
   updateTransportStatus: (id, status) => {
