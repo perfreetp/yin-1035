@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, Input, ScrollView } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classNames from 'classnames';
@@ -31,6 +31,46 @@ const LoadingPage: React.FC = () => {
   const [pressureRisk, setPressureRisk] = useState<boolean>(false);
   const [notes, setNotes] = useState<string>('');
 
+  const handleCategorySelect = (category: Category) => {
+    setSelectedCategory(category);
+    setPressureRisk(category.pressureRisk);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeElement = document.activeElement;
+      const tagName = activeElement?.tagName?.toLowerCase();
+      if (tagName === 'input' || tagName === 'textarea') {
+        return;
+      }
+
+      let targetKey: string | null = null;
+      if (e.key >= '1' && e.key <= '9') {
+        targetKey = e.key;
+      } else if (e.key === '0') {
+        targetKey = '0';
+      }
+
+      if (targetKey) {
+        e.preventDefault();
+        const found = categories.find(c => c.shortKey === targetKey);
+        if (found) {
+          handleCategorySelect(found);
+          Taro.vibrateShort({ type: 'light' });
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('keydown', handleKeyDown);
+      }
+    };
+  }, [categories]);
+
   const currentTransport = useMemo(() => {
     return transports.find(t => t.id === currentTransportId);
   }, [transports, currentTransportId]);
@@ -43,11 +83,6 @@ const LoadingPage: React.FC = () => {
     if (!currentTransport) return [];
     return [...currentTransport.batches].sort((a, b) => a.orderIndex - b.orderIndex);
   }, [currentTransport]);
-
-  const handleCategorySelect = (category: Category) => {
-    setSelectedCategory(category);
-    setPressureRisk(category.pressureRisk);
-  };
 
   const handleAddBatch = () => {
     if (!selectedCategory) {
@@ -113,15 +148,6 @@ const LoadingPage: React.FC = () => {
         }
       },
     });
-  };
-
-  const handleNewTransport = () => {
-    const newTransport = addTransport({});
-    setCurrentTransport(newTransport.id);
-  };
-
-  const handleSelectTransport = (id: string) => {
-    setCurrentTransport(id);
   };
 
   const handleBatchClick = (batchId: string) => {

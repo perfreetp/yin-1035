@@ -487,3 +487,161 @@
     margin-left: 4rpx;
   }
 }
+
+.sealPhoto {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: $radius-sm;
+  flex-shrink: 0;
+  margin-right: $spacing-md;
+  background: $color-divider;
+}
+
+.photoPickerBtn {
+  width: 140rpx;
+  height: 140rpx;
+  border: 2rpx dashed #cbd5e1;
+  border-radius: $radius-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  overflow: hidden;
+  flex-shrink: 0;
+
+  &:active {
+    background: #f1f5f9;
+  }
+}
+
+.positionOption {
+  padding: 20rpx 32rpx;
+  border-radius: $radius-sm;
+  background: $color-bg-page;
+  color: $color-text-secondary;
+  font-size: $font-size-md;
+  border: 2rpx solid transparent;
+  transition: all $transition-base;
+
+  &.active {
+    background: $color-primary-soft;
+    color: $color-primary;
+    border-color: $color-primary;
+    font-weight: $font-weight-medium;
+  }
+}
+
+.batchPicker {
+  white-space: nowrap;
+  padding-bottom: 8rpx;
+}
+
+.batchOption {
+  display: inline-flex;
+  padding: 14rpx 28rpx;
+  border-radius: $radius-xs;
+  background: $color-bg-page;
+  color: $color-text-secondary;
+  font-size: $font-size-sm;
+  margin-right: $spacing-sm;
+  border: 2rpx solid transparent;
+  transition: all $transition-base;
+
+  &.active {
+    background: $color-primary-soft;
+    color: $color-primary;
+    border-color: $color-primary;
+    font-weight: $font-weight-medium;
+  }
+}
+
+.recordTag {
+  &.tagRisk {
+    background: $color-tag-red-bg;
+    color: $color-error;
+  }
+}
+
+.lossBtn {
+  @include button-reset;
+  flex-shrink: 0;
+  height: $button-height-lg;
+  padding: 0 32rpx;
+  background: $color-bg-page;
+  color: $color-primary;
+  border: 2rpx solid $color-primary;
+  border-radius: $radius-button;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.98);
+    background: $color-primary-soft;
+  }
+}
+
+.lossSheet {
+  width: 100%;
+  max-height: 85vh;
+  background: $color-bg-card;
+  border-radius: 32rpx 32rpx 0 0;
+  padding: $spacing-lg;
+  padding-bottom: calc(#{$spacing-lg} + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.25s ease-out;
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+}
+
+.lossSheetHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing-md;
+  flex-shrink: 0;
+}
+
+.lossList {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: $spacing-md;
+}
+
+.lossItem {
+  padding: $spacing-md;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  margin-bottom: $spacing-md;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.lossItemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing-sm;
+}
+
+.lossCategoryName {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.lossBatchNo {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+

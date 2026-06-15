@@ -1,13 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView } from '@tarojs/components';
+import { View, Text, ScrollView, Image } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import classNames from 'classnames';
 import { useAppStore } from '@/store/useAppStore';
 import { formatDateTime, formatTime, formatDate } from '@/utils/date';
-import { Transport, TransportStatus, TempHumidityRecord, CoolerRecord, SealRecord } from '@/types';
+import {
+  TransportStatus, TempHumidityRecord, CoolerRecord,
+  SealRecord, PressureRiskRecord, ArrivalRecord
+} from '@/types';
 import styles from './index.module.scss';
 
-type RecordTabType = 'temp' | 'cooler' | 'seal';
+type RecordTabType = 'temp' | 'cooler' | 'seal' | 'pressure' | 'loss';
 
 const TransportDetailPage: React.FC = () => {
   const router = useRouter();
@@ -47,6 +50,17 @@ const TransportDetailPage: React.FC = () => {
     );
   }, [transport]);
 
+  const sortedPressureRecords = useMemo(() => {
+    if (!transport) return [];
+    return [...(transport.pressureRiskRecords || [])].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [transport]);
+
+  const arrivalRecords = useMemo(() => {
+    return transport?.arrivalRecords || [];
+  }, [transport]);
+
   const getStatusText = (status: TransportStatus): string => {
     const statusMap: Record<TransportStatus, string> = {
       loading: '装货中',
@@ -83,6 +97,10 @@ const TransportDetailPage: React.FC = () => {
     Taro.navigateTo({
       url: `/pages/batch-detail/index?id=${batchId}&transportId=${transportId}`,
     });
+  };
+
+  const handlePreviewImage = (url: string) => {
+    Taro.previewImage({ urls: [url], current: url });
   };
 
   if (!transport) {
@@ -164,14 +182,103 @@ const TransportDetailPage: React.FC = () => {
       ) : (
         sortedSealRecords.map((record: SealRecord) => (
           <View key={record.id} className={styles.recordItem}>
+            {record.photoUrl && (
+              <Image
+                className={styles.sealThumb}
+                src={record.photoUrl}
+                mode="aspectFill"
+                onClick={() => handlePreviewImage(record.photoUrl!)}
+              />
+            )}
             <View className={classNames(styles.recordIcon, styles.seal)}>🔒</View>
             <View className={styles.recordContent}>
               <Text className={styles.recordMain}>{record.sealNo}</Text>
               {record.notes && (
                 <Text className={styles.recordSub}>{record.notes}</Text>
               )}
+              {record.photoUrl && (
+                <Text className={styles.recordSub}>📷 含照片（点击查看）</Text>
+              )}
             </View>
             <Text className={styles.recordTime}>{formatTime(record.timestamp)}</Text>
+          </View>
+        ))
+      )}
+    </View>
+  );
+
+  const renderPressureRecords = () => (
+    <View className={styles.recordList}>
+      {sortedPressureRecords.length === 0 ? (
+        <View className={styles.emptyState}>
+          <Text className={styles.emptyIcon}>⚠️</Text>
+          <Text className={styles.emptyText}>暂无压筐风险记录</Text>
+        </View>
+      ) : (
+        sortedPressureRecords.map((record: PressureRiskRecord) => (
+          <View key={record.id} className={styles.recordItem}>
+            <View className={classNames(styles.recordIcon, styles.pressure)}>
+              {record.position === 'top' ? '🔝' : '⬇️'}
+            </View>
+            <View className={styles.recordContent}>
+              <Text className={styles.recordMain}>
+                {record.position === 'top' ? '顶层压筐风险' : '底层压筐风险'}
+              </Text>
+              {record.categoryName && (
+                <Text className={styles.recordSub}>涉及品类：{record.categoryName}</Text>
+              )}
+              {record.notes && (
+                <Text className={styles.recordSub}>备注：{record.notes}</Text>
+              )}
+            </View>
+            <Text className={styles.recordTime}>{formatTime(record.timestamp)}</Text>
+          </View>
+        ))
+      )}
+    </View>
+  );
+
+  const renderLossRecords = () => (
+    <View className={styles.recordList}>
+      {arrivalRecords.length === 0 ? (
+        <View className={styles.emptyState}>
+          <Text className={styles.emptyIcon}>📋</Text>
+          <Text className={styles.emptyText}>暂无损耗核对记录</Text>
+        </View>
+      ) : (
+        arrivalRecords.map((record: ArrivalRecord) => (
+          <View key={record.id} className={styles.lossRecordCard}>
+            <View className={styles.lossRecordHeader}>
+              <Text className={styles.lossCategory}>{record.categoryName}</Text>
+              <Text className={classNames(styles.lossRateTag, styles[getLossLevel(record.lossRate)])}>
+                损耗 {record.lossRate}%
+              </Text>
+            </View>
+            <View className={styles.lossRow}>
+              <View className={styles.lossCell}>
+                <Text className={styles.lossLabel}>装车</Text>
+                <Text className={styles.lossValue}>{record.originalBaskets}筐</Text>
+              </View>
+              <View className={styles.lossCell}>
+                <Text className={styles.lossLabel}>到站</Text>
+                <Text className={styles.lossValue}>{record.arrivalBaskets}筐</Text>
+              </View>
+              <View className={styles.lossCell}>
+                <Text className={styles.lossLabel}>损耗</Text>
+                <Text className={classNames(styles.lossValue, record.lossBaskets > 0 ? styles.lossBad : '')}>
+                  {record.lossBaskets}筐
+                </Text>
+              </View>
+              <View className={styles.lossCell}>
+                <Text className={styles.lossLabel}>品质</Text>
+                <Text className={classNames(styles.lossValue, styles[getQualityLevel(record.qualityScore)])}>
+                  {record.qualityScore}分
+                </Text>
+              </View>
+            </View>
+            {record.notes && (
+              <View className={styles.lossNotes}>备注：{record.notes}</View>
+            )}
           </View>
         ))
       )}
@@ -205,6 +312,10 @@ const TransportDetailPage: React.FC = () => {
             <View className={styles.statItem}>
               <Text className={styles.statValue}>{transport.tempHumidityRecords.length}</Text>
               <Text className={styles.statLabel}>温检</Text>
+            </View>
+            <View className={styles.statItem}>
+              <Text className={styles.statValue}>{sortedPressureRecords.length}</Text>
+              <Text className={styles.statLabel}>风险</Text>
             </View>
           </View>
 
@@ -255,6 +366,13 @@ const TransportDetailPage: React.FC = () => {
                   {transport.lossRate !== undefined ? `${transport.lossRate}%` : '--'}
                 </Text>
               </View>
+              {arrivalRecords.length > 0 && (
+                <View style={{ marginTop: '16rpx' }}>
+                  <Text style={{ fontSize: '24rpx', color: '#94a3b8' }}>
+                    按 {arrivalRecords.length} 个批次核对计算
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         )}
@@ -282,6 +400,11 @@ const TransportDetailPage: React.FC = () => {
                     <Text>{batch.precoolStatus === 'completed' ? '已预冷' : '未预冷'}</Text>
                     {batch.pressureRisk && <Text style={{ color: '#ef4444' }}>⚠️压筐风险</Text>}
                   </View>
+                  {batch.cooperative && (
+                    <View className={styles.batchMeta}>
+                      <Text style={{ color: '#64748b' }}>合作社：{batch.cooperative}</Text>
+                    </View>
+                  )}
                 </View>
                 <View className={styles.basketCount}>
                   {batch.basketCount}
@@ -319,11 +442,25 @@ const TransportDetailPage: React.FC = () => {
             >
               封签
             </View>
+            <View
+              className={classNames(styles.recordTab, { [styles.active]: activeTab === 'pressure' })}
+              onClick={() => setActiveTab('pressure')}
+            >
+              压筐
+            </View>
+            <View
+              className={classNames(styles.recordTab, { [styles.active]: activeTab === 'loss' })}
+              onClick={() => setActiveTab('loss')}
+            >
+              损耗
+            </View>
           </View>
 
           {activeTab === 'temp' && renderTempRecords()}
           {activeTab === 'cooler' && renderCoolerRecords()}
           {activeTab === 'seal' && renderSealRecords()}
+          {activeTab === 'pressure' && renderPressureRecords()}
+          {activeTab === 'loss' && renderLossRecords()}
         </View>
 
         <View className={styles.section}>

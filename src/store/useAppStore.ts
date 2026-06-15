@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import { Transport, Batch, Category, Market, Cooperative, Base, TempHumidityRecord, CoolerRecord, SealRecord } from '@/types';
+import {
+  Transport, Batch, Category, Market, Cooperative, Base,
+  TempHumidityRecord, CoolerRecord, SealRecord,
+  PressureRiskRecord, ArrivalRecord
+} from '@/types';
 import { storage } from '@/utils/storage';
 import { generateId, generateBatchNo, generateTransportNo, getNowStr } from '@/utils/date';
 
@@ -27,10 +31,14 @@ interface AppState {
   addTempHumidity: (transportId: string, record: Partial<TempHumidityRecord>) => TempHumidityRecord;
   addCoolerRecord: (transportId: string, record: Partial<CoolerRecord>) => CoolerRecord;
   addSealRecord: (transportId: string, record: Partial<SealRecord>) => SealRecord;
+  addPressureRiskRecord: (transportId: string, record: Partial<PressureRiskRecord>) => PressureRiskRecord;
+  addArrivalRecord: (transportId: string, record: Partial<ArrivalRecord>) => ArrivalRecord;
+  batchUpdateArrivalRecords: (transportId: string, records: Partial<ArrivalRecord>[]) => void;
 
   updateTransportStatus: (id: string, status: Transport['status']) => void;
 
   reorderBatches: (transportId: string, batchIds: string[]) => void;
+  recalculateTransportLoss: (transportId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -40,27 +48,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   cooperatives: [],
   bases: [],
   currentTransportId: null,
-
-  initData: () => {
-    console.log('[Store] initData');
-    const transports = storage.getTransports();
-    const categories = storage.getCategories();
-    const markets = storage.getMarkets();
-    const cooperatives = storage.getCooperatives();
-    const bases = storage.getBases();
-    const currentTransportId = storage.getCurrentTransportId();
-
-    set({
-      transports,
-      categories,
-      markets,
-      cooperatives,
-      bases,
-      currentTransportId,
-    });
-
-    console.log('[Store] initData complete, transports:', transports.length);
-  },
 
   setCurrentTransport: (id) => {
     storage.setCurrentTransportId(id);
@@ -87,6 +74,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       coolerRecords: [],
       tempHumidityRecords: [],
       sealRecords: [],
+      pressureRiskRecords: [],
+      arrivalRecords: [],
       notes: '',
       createdAt: getNowStr(),
       ...transport,
@@ -249,5 +238,123 @@ export const useAppStore = create<AppState>((set, get) => ({
     }).filter(Boolean) as Batch[];
 
     get().updateTransport(transportId, { batches });
+  },
+
+  addPressureRiskRecord: (transportId, record) => {
+    const transport = get().transports.find(t => t.id === transportId);
+    if (!transport) throw new Error('Transport not found');
+
+    const newRecord: PressureRiskRecord = {
+      id: generateId(),
+      transportId,
+      position: 'top',
+      timestamp: getNowStr(),
+      ...record,
+    };
+
+    const pressureRiskRecords = [...(transport.pressureRiskRecords || []), newRecord];
+    get().updateTransport(transportId, { pressureRiskRecords });
+    console.log('[Store] addPressureRiskRecord:', newRecord.position);
+    return newRecord;
+  },
+
+  addArrivalRecord: (transportId, record) => {
+    const transport = get().transports.find(t => t.id === transportId);
+    if (!transport) throw new Error('Transport not found');
+
+    const newRecord: ArrivalRecord = {
+      id: generateId(),
+      transportId,
+      batchId: '',
+      originalBaskets: 0,
+      arrivalBaskets: 0,
+      lossBaskets: 0,
+      lossRate: 0,
+      qualityScore: 100,
+      createdAt: getNowStr(),
+      ...record,
+    };
+
+    const arrivalRecords = [...(transport.arrivalRecords || []), newRecord];
+    get().updateTransport(transportId, { arrivalRecords });
+    get().recalculateTransportLoss(transportId);
+    console.log('[Store] addArrivalRecord, batch:', newRecord.batchId);
+    return newRecord;
+  },
+
+  batchUpdateArrivalRecords: (transportId, records) => {
+    const transport = get().transports.find(t => t.id === transportId);
+    if (!transport) throw new Error('Transport not found');
+
+    const existingRecords = transport.arrivalRecords || [];
+    const updatedRecords = records.map(r => {
+      const existing = existingRecords.find(e => e.batchId === r.batchId);
+      if (existing) {
+        return { ...existing, ...r };
+      }
+      return {
+        id: generateId(),
+        transportId,
+        batchId: '',
+        originalBaskets: 0,
+        arrivalBaskets: 0,
+        lossBaskets: 0,
+        lossRate: 0,
+        qualityScore: 100,
+        createdAt: getNowStr(),
+        ...r,
+      } as ArrivalRecord;
+    });
+
+    get().updateTransport(transportId, { arrivalRecords: updatedRecords });
+    get().recalculateTransportLoss(transportId);
+    console.log('[Store] batchUpdateArrivalRecords, count:', updatedRecords.length);
+  },
+
+  recalculateTransportLoss: (transportId) => {
+    const transport = get().transports.find(t => t.id === transportId);
+    if (!transport || !transport.arrivalRecords || transport.arrivalRecords.length === 0) {
+      return;
+    }
+
+    const records = transport.arrivalRecords;
+    const totalOriginal = records.reduce((s, r) => s + (r.originalBaskets || 0), 0);
+    const totalArrival = records.reduce((s, r) => s + (r.arrivalBaskets || 0), 0);
+    const totalLoss = totalOriginal - totalArrival;
+    const lossRate = totalOriginal > 0 ? parseFloat(((totalLoss / totalOriginal) * 100).toFixed(1)) : 0;
+    const avgQuality = records.length > 0
+      ? parseFloat((records.reduce((s, r) => s + (r.qualityScore || 0), 0) / records.length).toFixed(0))
+      : undefined;
+
+    get().updateTransport(transportId, {
+      lossRate,
+      qualityScore: avgQuality,
+    });
+  },
+
+  initData: () => {
+    console.log('[Store] initData');
+    const rawTransports = storage.getTransports();
+    const transports = rawTransports.map(t => ({
+      ...t,
+      pressureRiskRecords: t.pressureRiskRecords ?? [],
+      arrivalRecords: t.arrivalRecords ?? [],
+    })) as Transport[];
+    const categories = storage.getCategories();
+    const markets = storage.getMarkets();
+    const cooperatives = storage.getCooperatives();
+    const bases = storage.getBases();
+    const currentTransportId = storage.getCurrentTransportId();
+
+    set({
+      transports,
+      categories,
+      markets,
+      cooperatives,
+      bases,
+      currentTransportId,
+    });
+
+    console.log('[Store] initData complete, transports:', transports.length);
   },
 }));

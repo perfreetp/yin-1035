@@ -61,6 +61,20 @@ export interface SealRecord {
   notes?: string;
 }
 
+// 压筐风险位置
+export type PressureRiskPosition = 'top' | 'bottom';
+
+// 压筐风险记录
+export interface PressureRiskRecord {
+  id: string;
+  transportId: string;
+  position: PressureRiskPosition;
+  batchId?: string;
+  categoryName?: string;
+  notes?: string;
+  timestamp: string;
+}
+
 // 运输状态
 export type TransportStatus = 'loading' | 'in_transit' | 'arrived';
 
@@ -79,6 +93,8 @@ export interface Transport {
   coolerRecords: CoolerRecord[];
   tempHumidityRecords: TempHumidityRecord[];
   sealRecords: SealRecord[];
+  pressureRiskRecords: PressureRiskRecord[];
+  arrivalRecords: ArrivalRecord[];
   departureTime?: string;
   arrivalTime?: string;
   lossRate?: number;
@@ -87,11 +103,14 @@ export interface Transport {
   createdAt: string;
 }
 
-// 到站损耗记录
+// 到站损耗记录（按批次核对）
 export interface ArrivalRecord {
   id: string;
   transportId: string;
   batchId: string;
+  batchNo?: string;
+  categoryName?: string;
+  originalBaskets: number;
   arrivalBaskets: number;
   lossBaskets: number;
   lossRate: number;

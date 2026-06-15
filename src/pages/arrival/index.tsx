@@ -4,7 +4,7 @@ import Taro from '@tarojs/taro';
 import classNames from 'classnames';
 import { useAppStore } from '@/store/useAppStore';
 import { Transport } from '@/types';
-import { formatDate, formatDateTime } from '@/utils/date';
+import { formatDate } from '@/utils/date';
 import StatCard from '@/components/StatCard';
 import styles from './index.module.scss';
 
@@ -28,13 +28,17 @@ const ArrivalPage: React.FC = () => {
   const stats = useMemo(() => {
     const total = arrivedTransports.length;
     const totalBaskets = arrivedTransports.reduce((sum, t) => sum + t.totalBaskets, 0);
-    const avgLossRate = total > 0
-      ? (arrivedTransports.reduce((sum, t) => sum + (t.lossRate || 0), 0) / total).toFixed(1)
-      : '0';
-    const avgQuality = total > 0
-      ? (arrivedTransports.reduce((sum, t) => sum + (t.qualityScore || 0), 0) / total).toFixed(0)
-      : '0';
-    return { total, totalBaskets, avgLossRate, avgQuality };
+    const verifiedTransports = arrivedTransports.filter(
+      t => t.arrivalRecords && t.arrivalRecords.length > 0
+    );
+    const verifiedCount = verifiedTransports.length;
+    const avgLossRate = verifiedCount > 0
+      ? (verifiedTransports.reduce((sum, t) => sum + (t.lossRate || 0), 0) / verifiedCount).toFixed(1)
+      : '--';
+    const avgQuality = verifiedCount > 0
+      ? (verifiedTransports.reduce((sum, t) => sum + (t.qualityScore || 0), 0) / verifiedCount).toFixed(0)
+      : '--';
+    return { total, totalBaskets, avgLossRate, avgQuality, verifiedCount };
   }, [arrivedTransports]);
 
   const getQualityLevel = (score?: number): 'good' | 'normal' | 'bad' => {
@@ -135,8 +139,19 @@ const ArrivalPage: React.FC = () => {
               >
                 <View className={styles.transportCardHeader}>
                   <Text className={styles.transportNo}>{transport.transportNo}</Text>
-                  <View className={classNames(styles.statusBadge, styles[getStatusClass(transport.status)])}>
-                    {getStatusText(transport.status)}
+                  <View style={{ display: 'flex', alignItems: 'center', gap: '12rpx' }}>
+                    {transport.status === 'arrived' &&
+                      transport.arrivalRecords &&
+                      transport.arrivalRecords.length > 0 && (
+                        <View className={styles.verifiedBadge}>✅ 已核对</View>
+                      )}
+                    {transport.status === 'arrived' &&
+                      (!transport.arrivalRecords || transport.arrivalRecords.length === 0) && (
+                        <View className={styles.unverifiedBadge}>📝 待核对</View>
+                      )}
+                    <View className={classNames(styles.statusBadge, styles[getStatusClass(transport.status)])}>
+                      {getStatusText(transport.status)}
+                    </View>
                   </View>
                 </View>
 

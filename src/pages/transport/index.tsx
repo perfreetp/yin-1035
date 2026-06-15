@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Input } from '@tarojs/components';
+import { View, Text, ScrollView, Input, Image } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classNames from 'classnames';
 import { useAppStore } from '@/store/useAppStore';
-import { formatDateTime, formatTime, getNowStr } from '@/utils/date';
-import { CoolerRecord, TempHumidityRecord, SealRecord } from '@/types';
-import StatCard from '@/components/StatCard';
+import { formatTime } from '@/utils/date';
+import {
+  CoolerRecord, TempHumidityRecord, SealRecord,
+  PressureRiskRecord, PressureRiskPosition, ArrivalRecord, Batch
+} from '@/types';
 import styles from './index.module.scss';
 
 const TransportPage: React.FC = () => {
@@ -16,17 +18,24 @@ const TransportPage: React.FC = () => {
     addCoolerRecord,
     addTempHumidity,
     addSealRecord,
-    updateTransport,
+    addPressureRiskRecord,
+    batchUpdateArrivalRecords,
     updateTransportStatus,
   } = useAppStore();
 
   const [selectedTransportId, setSelectedTransportId] = useState<string | null>(null);
   const [showTempModal, setShowTempModal] = useState(false);
   const [showSealModal, setShowSealModal] = useState(false);
+  const [showPressureModal, setShowPressureModal] = useState(false);
+  const [showLossModal, setShowLossModal] = useState(false);
   const [tempValue, setTempValue] = useState('');
   const [humidityValue, setHumidityValue] = useState('');
   const [sealNo, setSealNo] = useState('');
+  const [sealPhoto, setSealPhoto] = useState<string>('');
   const [sealNotes, setSealNotes] = useState('');
+  const [pressurePosition, setPressurePosition] = useState<PressureRiskPosition>('top');
+  const [pressureBatchId, setPressureBatchId] = useState<string>('');
+  const [pressureNotes, setPressureNotes] = useState<string>('');
 
   const inTransitTransports = useMemo(() => {
     return transports.filter(t => t.status === 'in_transit');
@@ -74,15 +83,20 @@ const TransportPage: React.FC = () => {
     );
   }, [activeTransport]);
 
+  const sortedPressureRiskRecords = useMemo(() => {
+    if (!activeTransport) return [];
+    return [...(activeTransport.pressureRiskRecords || [])].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [activeTransport]);
+
   const handleToggleCooler = () => {
     if (!activeTransportId) return;
-
     const action: 'start' | 'stop' = isCoolerRunning ? 'stop' : 'start';
     addCoolerRecord(activeTransportId, {
       action,
       temperature: parseFloat(tempValue) || undefined,
     });
-
     Taro.vibrateShort({ type: 'medium' });
     Taro.showToast({
       title: action === 'start' ? '保温机已启动' : '保温机已关闭',
@@ -103,13 +117,11 @@ const TransportPage: React.FC = () => {
       Taro.showToast({ title: '请输入温度', icon: 'none' });
       return;
     }
-
     addTempHumidity(activeTransportId, {
       temperature: parseFloat(tempValue),
       humidity: parseFloat(humidityValue) || 0,
       location: '途中',
     });
-
     setShowTempModal(false);
     Taro.showToast({ title: '记录成功', icon: 'success' });
   };
@@ -118,7 +130,33 @@ const TransportPage: React.FC = () => {
     if (!activeTransportId) return;
     setShowSealModal(true);
     setSealNo('');
+    setSealPhoto('');
     setSealNotes('');
+  };
+
+  const handleChooseSealPhoto = async () => {
+    try {
+      const res = await Taro.chooseImage({
+        count: 1,
+        sizeType: ['compressed'],
+        sourceType: ['album', 'camera'],
+      });
+      if (res.tempFilePaths && res.tempFilePaths.length > 0) {
+        const filePath = res.tempFilePaths[0];
+        setSealPhoto(filePath);
+        Taro.showToast({ title: '照片已选', icon: 'success' });
+      }
+    } catch (e) {
+      console.error('[Transport] chooseImage error:', e);
+    }
+  };
+
+  const handlePreviewSealPhoto = (url: string) => {
+    if (!url) return;
+    Taro.previewImage({
+      current: url,
+      urls: [url],
+    });
   };
 
   const handleConfirmSeal = () => {
@@ -127,38 +165,123 @@ const TransportPage: React.FC = () => {
       Taro.showToast({ title: '请输入封签号', icon: 'none' });
       return;
     }
-
     addSealRecord(activeTransportId, {
       sealNo,
+      photoUrl: sealPhoto || undefined,
       notes: sealNotes,
     });
-
     setShowSealModal(false);
     Taro.showToast({ title: '记录成功', icon: 'success' });
   };
 
   const handleMarkPressureRisk = () => {
     if (!activeTransportId) return;
-    Taro.showActionSheet({
-      itemList: ['标记顶层压筐风险', '标记底层压筐风险', '取消标记'],
-      success: (res) => {
-        if (res.tapIndex < 2) {
-          const riskTypes = ['顶层', '底层'];
-          Taro.showToast({
-            title: `已标记${riskTypes[res.tapIndex]}压筐风险`,
-            icon: 'none',
-          });
-        }
-      },
+    setShowPressureModal(true);
+    setPressurePosition('top');
+    setPressureBatchId('');
+    setPressureNotes('');
+  };
+
+  const handleConfirmPressureRisk = () => {
+    if (!activeTransportId) return;
+    const selectedBatch = activeTransport?.batches.find(b => b.id === pressureBatchId);
+    addPressureRiskRecord(activeTransportId, {
+      position: pressurePosition,
+      batchId: pressureBatchId || undefined,
+      categoryName: selectedBatch?.categoryName,
+      notes: pressureNotes || undefined,
+    });
+    setShowPressureModal(false);
+    Taro.showToast({ title: '已记录风险', icon: 'success' });
+  };
+
+  const handleOpenLossCheck = () => {
+    if (!activeTransportId || !activeTransport) return;
+    setShowLossModal(true);
+  };
+
+  const [lossRecords, setLossRecords] = useState<Array<{
+    batchId: string;
+    batchNo: string;
+    categoryName: string;
+    originalBaskets: number;
+    arrivalBaskets: string;
+    lossBaskets: string;
+    qualityScore: string;
+    notes: string;
+  }>>([]);
+
+  const initLossRecords = () => {
+    if (!activeTransport) return;
+    const existingRecords = activeTransport.arrivalRecords || [];
+    const records = activeTransport.batches.map(batch => {
+      const existing = existingRecords.find(r => r.batchId === batch.id);
+      return {
+        batchId: batch.id,
+        batchNo: batch.batchNo,
+        categoryName: batch.categoryName,
+        originalBaskets: batch.basketCount,
+        arrivalBaskets: existing ? existing.arrivalBaskets.toString() : batch.basketCount.toString(),
+        lossBaskets: existing ? existing.lossBaskets.toString() : '0',
+        qualityScore: existing ? existing.qualityScore.toString() : '100',
+        notes: existing?.notes || '',
+      };
+    });
+    setLossRecords(records);
+  };
+
+  const handleLossRecordChange = (index: number, field: string, value: string) => {
+    setLossRecords(prev => {
+      const updated = [...prev];
+      const rec = { ...updated[index], [field]: value };
+      if (field === 'arrivalBaskets') {
+        const arrival = parseInt(value) || 0;
+        rec.lossBaskets = Math.max(0, rec.originalBaskets - arrival).toString();
+      }
+      if (field === 'lossBaskets') {
+        const loss = parseInt(value) || 0;
+        rec.arrivalBaskets = Math.max(0, rec.originalBaskets - loss).toString();
+      }
+      updated[index] = rec;
+      return updated;
     });
   };
 
-  const handleArrival = () => {
+  const handleSaveLossRecords = () => {
     if (!activeTransportId) return;
+    const records: Partial<ArrivalRecord>[] = lossRecords.map(r => {
+      const arrival = parseInt(r.arrivalBaskets) || 0;
+      const loss = parseInt(r.lossBaskets) || 0;
+      const lossRate = r.originalBaskets > 0
+        ? parseFloat(((loss / r.originalBaskets) * 100).toFixed(1))
+        : 0;
+      return {
+        batchId: r.batchId,
+        batchNo: r.batchNo,
+        categoryName: r.categoryName,
+        originalBaskets: r.originalBaskets,
+        arrivalBaskets: arrival,
+        lossBaskets: loss,
+        lossRate,
+        qualityScore: parseInt(r.qualityScore) || 100,
+        notes: r.notes || undefined,
+      };
+    });
+    batchUpdateArrivalRecords(activeTransportId, records);
+    setShowLossModal(false);
+    Taro.showToast({ title: '保存成功', icon: 'success' });
+  };
+
+  const handleArrival = () => {
+    if (!activeTransportId || !activeTransport) return;
+    const hasLossRecords = activeTransport.arrivalRecords && activeTransport.arrivalRecords.length > 0;
+    const content = hasLossRecords
+      ? `确认车辆已到达 ${activeTransport.toMarket}？`
+      : `确认车辆已到达 ${activeTransport.toMarket}？\n（建议先完成损耗核对）`;
 
     Taro.showModal({
       title: '确认到站',
-      content: `确认车辆已到达 ${activeTransport?.toMarket}？`,
+      content,
       confirmText: '确认到站',
       success: (res) => {
         if (res.confirm) {
@@ -290,6 +413,79 @@ const TransportPage: React.FC = () => {
 
             <View className={styles.recordCard}>
               <View className={styles.recordHeader}>
+                <Text className={styles.recordTitle}>封签记录</Text>
+                <Text className={styles.recordCount}>共 {sortedSealRecords.length} 条</Text>
+              </View>
+              {sortedSealRecords.length === 0 ? (
+                <View className={styles.emptyState}>
+                  <Text className={styles.emptyIcon}>🔒</Text>
+                  <Text className={styles.emptyText}>暂无封签记录</Text>
+                </View>
+              ) : (
+                <View className={styles.recordList}>
+                  {sortedSealRecords.slice(0, 10).map((record: SealRecord) => (
+                    <View key={record.id} className={styles.recordItem}>
+                      {record.photoUrl && (
+                        <Image
+                          className={styles.sealPhoto}
+                          src={record.photoUrl}
+                          mode="aspectFill"
+                          onClick={() => handlePreviewSealPhoto(record.photoUrl!)}
+                        />
+                      )}
+                      <Text className={styles.recordTime}>{formatTime(record.timestamp)}</Text>
+                      <View className={styles.recordContent}>
+                        <Text className={styles.recordMain}>{record.sealNo}</Text>
+                        {record.notes && (
+                          <Text className={styles.recordSub}>{record.notes}</Text>
+                        )}
+                        {record.photoUrl && (
+                          <Text className={styles.recordSub}>📷 已拍照片</Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View className={styles.recordCard}>
+              <View className={styles.recordHeader}>
+                <Text className={styles.recordTitle}>压筐风险记录</Text>
+                <Text className={styles.recordCount}>共 {sortedPressureRiskRecords.length} 条</Text>
+              </View>
+              {sortedPressureRiskRecords.length === 0 ? (
+                <View className={styles.emptyState}>
+                  <Text className={styles.emptyIcon}>⚠️</Text>
+                  <Text className={styles.emptyText}>暂无压筐风险记录</Text>
+                </View>
+              ) : (
+                <View className={styles.recordList}>
+                  {sortedPressureRiskRecords.slice(0, 10).map((record: PressureRiskRecord) => (
+                    <View key={record.id} className={styles.recordItem}>
+                      <Text className={styles.recordTime}>{formatTime(record.timestamp)}</Text>
+                      <View className={styles.recordContent}>
+                        <Text className={styles.recordMain}>
+                          {record.position === 'top' ? '🔝 顶层压筐风险' : '⬇️ 底层压筐风险'}
+                        </Text>
+                        {record.categoryName && (
+                          <Text className={styles.recordSub}>涉及品类：{record.categoryName}</Text>
+                        )}
+                        {record.notes && (
+                          <Text className={styles.recordSub}>备注：{record.notes}</Text>
+                        )}
+                      </View>
+                      <View className={classNames(styles.recordTag, 'tagRisk')}>
+                        风险
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View className={styles.recordCard}>
+              <View className={styles.recordHeader}>
                 <Text className={styles.recordTitle}>温湿度记录</Text>
                 <Text className={styles.recordCount}>共 {sortedTempRecords.length} 条</Text>
               </View>
@@ -348,33 +544,6 @@ const TransportPage: React.FC = () => {
                 </View>
               )}
             </View>
-
-            <View className={styles.recordCard}>
-              <View className={styles.recordHeader}>
-                <Text className={styles.recordTitle}>封签记录</Text>
-                <Text className={styles.recordCount}>共 {sortedSealRecords.length} 条</Text>
-              </View>
-              {sortedSealRecords.length === 0 ? (
-                <View className={styles.emptyState}>
-                  <Text className={styles.emptyIcon}>🔒</Text>
-                  <Text className={styles.emptyText}>暂无封签记录</Text>
-                </View>
-              ) : (
-                <View className={styles.recordList}>
-                  {sortedSealRecords.slice(0, 10).map((record: SealRecord) => (
-                    <View key={record.id} className={styles.recordItem}>
-                      <Text className={styles.recordTime}>{formatTime(record.timestamp)}</Text>
-                      <View className={styles.recordContent}>
-                        <Text className={styles.recordMain}>{record.sealNo}</Text>
-                        {record.notes && (
-                          <Text className={styles.recordSub}>{record.notes}</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
           </>
         )}
 
@@ -412,6 +581,12 @@ const TransportPage: React.FC = () => {
 
       {activeTransport && (
         <View className={styles.bottomBar}>
+          <View
+            className={styles.lossBtn}
+            onClick={handleOpenLossCheck}
+          >
+            📋 损耗核对
+          </View>
           <View
             className={styles.arriveBtn}
             onClick={handleArrival}
@@ -467,17 +642,198 @@ const TransportPage: React.FC = () => {
               />
             </View>
             <View className="form-row">
+              <Text className="form-label">封签照片</Text>
+              <View style={{ display: 'flex', alignItems: 'center', gap: '16rpx', flexWrap: 'wrap' }}>
+                <View
+                  className={styles.photoPickerBtn}
+                  onClick={handleChooseSealPhoto}
+                >
+                  {sealPhoto ? (
+                    <Image
+                      src={sealPhoto}
+                      mode="aspectFill"
+                      style={{ width: '100%', height: '100%', borderRadius: '12rpx' }}
+                    />
+                  ) : (
+                    <Text style={{ fontSize: '48rpx', color: '#94a3b8' }}>📷</Text>
+                  )}
+                </View>
+                <Text style={{ fontSize: '26rpx', color: '#64748b' }}>
+                  {sealPhoto ? '点击更换照片' : '拍照或从相册选择'}
+                </Text>
+              </View>
+            </View>
+            <View className="form-row">
               <Text className="form-label">备注</Text>
               <Input
                 className="form-input"
                 value={sealNotes}
                 onInput={(e) => setSealNotes(e.detail.value)}
-                placeholder="选填"
+                placeholder="选填，如：前门封签"
               />
             </View>
             <View className="modal-actions">
               <View className="modal-btn cancel" onClick={() => setShowSealModal(false)}>取消</View>
               <View className="modal-btn confirm" onClick={handleConfirmSeal}>确认</View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {showPressureModal && (
+        <View className="modal-mask" onClick={() => setShowPressureModal(false)}>
+          <View className="modal-content" onClick={e => e.stopPropagation()}>
+            <Text className="modal-title">记录压筐风险</Text>
+            <View className="form-row">
+              <Text className="form-label">风险位置</Text>
+              <View style={{ display: 'flex', gap: '16rpx' }}>
+                <View
+                  className={classNames(styles.positionOption, { [styles.active]: pressurePosition === 'top' })}
+                  onClick={() => setPressurePosition('top')}
+                >
+                  🔝 顶层
+                </View>
+                <View
+                  className={classNames(styles.positionOption, { [styles.active]: pressurePosition === 'bottom' })}
+                  onClick={() => setPressurePosition('bottom')}
+                >
+                  ⬇️ 底层
+                </View>
+              </View>
+            </View>
+            <View className="form-row">
+              <Text className="form-label">涉及批次（选填）</Text>
+              <ScrollView scrollX className={styles.batchPicker}>
+                <View style={{ display: 'flex', gap: '12rpx' }}>
+                  <View
+                    className={classNames(styles.batchOption, { [styles.active]: pressureBatchId === '' })}
+                    onClick={() => setPressureBatchId('')}
+                  >
+                    不指定
+                  </View>
+                  {activeTransport?.batches.map((batch: Batch) => (
+                    <View
+                      key={batch.id}
+                      className={classNames(styles.batchOption, { [styles.active]: pressureBatchId === batch.id })}
+                      onClick={() => setPressureBatchId(batch.id)}
+                    >
+                      {batch.categoryName}
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+            <View className="form-row">
+              <Text className="form-label">备注</Text>
+              <Input
+                className="form-input"
+                value={pressureNotes}
+                onInput={(e) => setPressureNotes(e.detail.value)}
+                placeholder="选填，如：上面压了重物"
+              />
+            </View>
+            <View className="modal-actions">
+              <View className="modal-btn cancel" onClick={() => setShowPressureModal(false)}>取消</View>
+              <View className="modal-btn confirm" onClick={handleConfirmPressureRisk}>确认</View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {showLossModal && (
+        <View
+          className="modal-mask"
+          onClick={() => setShowLossModal(false)}
+          style={{ alignItems: 'flex-end' }}
+        >
+          <View
+            className={styles.lossSheet}
+            onClick={e => e.stopPropagation()}
+          >
+            <View className={styles.lossSheetHeader}>
+              <Text className="modal-title">损耗核对</Text>
+              <Text
+                style={{ fontSize: '26rpx', color: '#94a3b8' }}
+                onClick={() => initLossRecords()}
+              >
+                按批次核对
+              </Text>
+            </View>
+            <ScrollView scrollY className={styles.lossList}>
+              {lossRecords.length === 0 && activeTransport?.batches.length! > 0 && (
+                <View style={{ padding: '32rpx', textAlign: 'center' }}>
+                  <Text onClick={initLossRecords} style={{ color: '#0ea5e9' }}>
+                    点击加载批次列表 →
+                  </Text>
+                </View>
+              )}
+              {lossRecords.map((rec, index) => (
+                <View key={rec.batchId} className={styles.lossItem}>
+                  <View className={styles.lossItemHeader}>
+                    <Text className={styles.lossCategoryName}>{rec.categoryName}</Text>
+                    <Text className={styles.lossBatchNo}>{rec.batchNo}</Text>
+                  </View>
+                  <View style={{ display: 'flex', gap: '12rpx', marginBottom: '12rpx' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>装车筐数</Text>
+                      <Text style={{ fontSize: '28rpx', fontWeight: '600', color: '#0f172a' }}>
+                        {rec.originalBaskets}筐
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>到站筐数</Text>
+                      <Input
+                        className="form-input"
+                        type="number"
+                        value={rec.arrivalBaskets}
+                        onInput={(e) => handleLossRecordChange(index, 'arrivalBaskets', e.detail.value)}
+                        style={{ fontSize: '28rpx', fontWeight: '600' }}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>损耗筐数</Text>
+                      <Input
+                        className="form-input"
+                        type="number"
+                        value={rec.lossBaskets}
+                        onInput={(e) => handleLossRecordChange(index, 'lossBaskets', e.detail.value)}
+                        style={{ fontSize: '28rpx', fontWeight: '600', color: parseInt(rec.lossBaskets) > 0 ? '#ef4444' : '#0f172a' }}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ display: 'flex', gap: '12rpx' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>品质分</Text>
+                      <Input
+                        className="form-input"
+                        type="number"
+                        value={rec.qualityScore}
+                        onInput={(e) => handleLossRecordChange(index, 'qualityScore', e.detail.value)}
+                        style={{ fontSize: '28rpx', fontWeight: '600' }}
+                      />
+                    </View>
+                    <View style={{ flex: 2 }}>
+                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>备注</Text>
+                      <Input
+                        className="form-input"
+                        value={rec.notes}
+                        onInput={(e) => handleLossRecordChange(index, 'notes', e.detail.value)}
+                        placeholder="选填"
+                        style={{ fontSize: '26rpx' }}
+                      />
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+            <View className="modal-actions">
+              <View className="modal-btn cancel" onClick={() => setShowLossModal(false)}>取消</View>
+              <View
+                className="modal-btn confirm"
+                onClick={handleSaveLossRecords}
+              >
+                保存核对
+              </View>
             </View>
           </View>
         </View>

@@ -1,5 +1,5 @@
 import Taro from '@tarojs/taro';
-import { Transport, Batch, Category, Market, Cooperative, Base } from '@/types';
+import { Transport, Category, Market, Cooperative, Base } from '@/types';
 
 const STORAGE_KEYS = {
   TRANSPORTS: 'cold_chain_transports',

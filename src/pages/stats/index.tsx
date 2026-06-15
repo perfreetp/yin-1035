@@ -3,7 +3,6 @@ import { View, Text, ScrollView } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classNames from 'classnames';
 import { useAppStore } from '@/store/useAppStore';
-import { Transport } from '@/types';
 import { formatDate } from '@/utils/date';
 import StatCard from '@/components/StatCard';
 import styles from './index.module.scss';
@@ -39,48 +38,110 @@ const StatsPage: React.FC = () => {
   }, [arrivedTransports]);
 
   const byCooperative = useMemo((): RankItem[] => {
-    const map = new Map<string, { count: number; baskets: number; lossSum: number; scoreSum: number }>();
-    arrivedTransports.forEach(t => {
-      const coopName = t.batches[0]?.cooperative || '未知';
-      const existing = map.get(coopName) || { count: 0, baskets: 0, lossSum: 0, scoreSum: 0 };
-      map.set(coopName, {
-        count: existing.count + 1,
-        baskets: existing.baskets + t.totalBaskets,
-        lossSum: existing.lossSum + (t.lossRate || 0),
-        scoreSum: existing.scoreSum + (t.qualityScore || 0),
+    interface AggData {
+      basketCount: number;
+      transportSet: Set<string>;
+      lossBasketSum: number;
+      qualitySum: number;
+      batchCount: number;
+    }
+    const map = new Map<string, AggData>();
+
+    arrivedTransports.forEach(transport => {
+      transport.batches.forEach(batch => {
+        const coopName = batch.cooperative || '未知合作社';
+        if (!map.has(coopName)) {
+          map.set(coopName, {
+            basketCount: 0,
+            transportSet: new Set<string>(),
+            lossBasketSum: 0,
+            qualitySum: 0,
+            batchCount: 0,
+          });
+        }
+        const agg = map.get(coopName)!;
+        agg.basketCount += batch.basketCount;
+        agg.transportSet.add(transport.id);
+        agg.batchCount += 1;
+
+        const arrivalRecord = (transport.arrivalRecords || []).find(r => r.batchId === batch.id);
+        if (arrivalRecord) {
+          agg.lossBasketSum += arrivalRecord.lossBaskets;
+          agg.qualitySum += arrivalRecord.qualityScore;
+        }
       });
     });
+
     return Array.from(map.entries())
-      .map(([name, data]) => ({
-        name,
-        count: data.count,
-        baskets: data.baskets,
-        lossRate: data.count > 0 ? parseFloat((data.lossSum / data.count).toFixed(2)) : 0,
-        qualityScore: data.count > 0 ? parseFloat((data.scoreSum / data.count).toFixed(1)) : 0,
-      }))
+      .map(([name, data]) => {
+        const avgLoss = data.basketCount > 0
+          ? parseFloat(((data.lossBasketSum / data.basketCount) * 100).toFixed(1))
+          : 0;
+        const avgQuality = data.batchCount > 0 && data.qualitySum > 0
+          ? parseFloat((data.qualitySum / data.batchCount).toFixed(0))
+          : 0;
+        return {
+          name,
+          count: data.transportSet.size,
+          baskets: data.basketCount,
+          lossRate: avgLoss,
+          qualityScore: avgQuality,
+        };
+      })
       .sort((a, b) => b.baskets - a.baskets);
   }, [arrivedTransports]);
 
   const byBase = useMemo((): RankItem[] => {
-    const map = new Map<string, { count: number; baskets: number; lossSum: number; scoreSum: number }>();
-    arrivedTransports.forEach(t => {
-      const baseName = t.fromBase || '未知基地';
-      const existing = map.get(baseName) || { count: 0, baskets: 0, lossSum: 0, scoreSum: 0 };
-      map.set(baseName, {
-        count: existing.count + 1,
-        baskets: existing.baskets + t.totalBaskets,
-        lossSum: existing.lossSum + (t.lossRate || 0),
-        scoreSum: existing.scoreSum + (t.qualityScore || 0),
+    interface AggData {
+      basketCount: number;
+      transportSet: Set<string>;
+      lossBasketSum: number;
+      qualitySum: number;
+      batchCount: number;
+    }
+    const map = new Map<string, AggData>();
+
+    arrivedTransports.forEach(transport => {
+      transport.batches.forEach(batch => {
+        const baseName = batch.base || transport.fromBase || '未知基地';
+        if (!map.has(baseName)) {
+          map.set(baseName, {
+            basketCount: 0,
+            transportSet: new Set<string>(),
+            lossBasketSum: 0,
+            qualitySum: 0,
+            batchCount: 0,
+          });
+        }
+        const agg = map.get(baseName)!;
+        agg.basketCount += batch.basketCount;
+        agg.transportSet.add(transport.id);
+        agg.batchCount += 1;
+
+        const arrivalRecord = (transport.arrivalRecords || []).find(r => r.batchId === batch.id);
+        if (arrivalRecord) {
+          agg.lossBasketSum += arrivalRecord.lossBaskets;
+          agg.qualitySum += arrivalRecord.qualityScore;
+        }
       });
     });
+
     return Array.from(map.entries())
-      .map(([name, data]) => ({
-        name,
-        count: data.count,
-        baskets: data.baskets,
-        lossRate: data.count > 0 ? parseFloat((data.lossSum / data.count).toFixed(2)) : 0,
-        qualityScore: data.count > 0 ? parseFloat((data.scoreSum / data.count).toFixed(1)) : 0,
-      }))
+      .map(([name, data]) => {
+        const avgLoss = data.basketCount > 0
+          ? parseFloat(((data.lossBasketSum / data.basketCount) * 100).toFixed(1))
+          : 0;
+        const avgQuality = data.batchCount > 0 && data.qualitySum > 0
+          ? parseFloat((data.qualitySum / data.batchCount).toFixed(0))
+          : 0;
+        return {
+          name,
+          count: data.transportSet.size,
+          baskets: data.basketCount,
+          lossRate: avgLoss,
+          qualityScore: avgQuality,
+        };
+      })
       .sort((a, b) => b.baskets - a.baskets);
   }, [arrivedTransports]);
 
