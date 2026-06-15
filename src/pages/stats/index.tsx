@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView } from '@tarojs/components';
+import { View, Text, ScrollView, Picker } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classNames from 'classnames';
 import { useAppStore } from '@/store/useAppStore';
 import { formatDate } from '@/utils/date';
+import { Transport, Batch, ArrivalRecord, PressureRiskRecord } from '@/types';
 import StatCard from '@/components/StatCard';
 import styles from './index.module.scss';
 
 type StatTabType = 'cooperative' | 'base' | 'route';
-type DateRangeType = '7d' | '30d' | 'all';
 
 interface RankItem {
   name: string;
@@ -18,16 +18,48 @@ interface RankItem {
   qualityScore: number;
 }
 
+interface BatchWithTransport {
+  transport: Transport;
+  batch: Batch;
+  arrivalRecord?: ArrivalRecord;
+  riskRecords: PressureRiskRecord[];
+  routeName: string;
+}
+
 const StatsPage: React.FC = () => {
   const { transports, cooperatives } = useAppStore();
   const [activeTab, setActiveTab] = useState<StatTabType>('cooperative');
-  const [dateRange, setDateRange] = useState<DateRangeType>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
   const [selectedCoop, setSelectedCoop] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  const arrivedTransports = useMemo(() => {
-    return transports.filter(t => t.status === 'arrived');
+  const allBatches = useMemo((): BatchWithTransport[] => {
+    const list: BatchWithTransport[] = [];
+    transports
+      .filter(t => t.status === 'arrived')
+      .forEach(transport => {
+        const routeName = transport.route || `${transport.fromBase}-${transport.toMarket}`;
+        transport.batches.forEach(batch => {
+          const arrivalRecord = (transport.arrivalRecords || []).find(r => r.batchId === batch.id);
+          const riskRecords = (transport.pressureRiskRecords || []).filter(
+            r => r.batchId === batch.id || r.categoryName === batch.categoryName
+          );
+          list.push({
+            transport,
+            batch,
+            arrivalRecord,
+            riskRecords,
+            routeName,
+          });
+        });
+      });
+    return list.sort((a, b) => {
+      const ta = new Date(a.transport.arrivalTime || a.transport.createdAt).getTime();
+      const tb = new Date(b.transport.arrivalTime || b.transport.createdAt).getTime();
+      return tb - ta;
+    });
   }, [transports]);
 
   const allRoutes = useMemo(() => {
@@ -41,46 +73,60 @@ const StatsPage: React.FC = () => {
     return Array.from(routes).sort();
   }, [transports]);
 
-  const filteredTransports = useMemo(() => {
-    let list = [...arrivedTransports];
+  const filteredBatches = useMemo(() => {
+    let list = [...allBatches];
 
-    if (dateRange !== 'all') {
-      const days = dateRange === '7d' ? 7 : 30;
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - days);
-      list = list.filter(t => {
-        const dateStr = t.arrivalTime || t.createdAt;
-        return new Date(dateStr).getTime() >= cutoff.getTime();
+    if (startDate) {
+      const start = new Date(startDate).getTime();
+      list = list.filter(b => {
+        const t = new Date(b.transport.arrivalTime || b.transport.createdAt).getTime();
+        return t >= start;
+      });
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      const endTs = end.getTime();
+      list = list.filter(b => {
+        const t = new Date(b.transport.arrivalTime || b.transport.createdAt).getTime();
+        return t <= endTs;
       });
     }
 
     if (selectedRoute) {
-      list = list.filter(t => {
-        const routeName = t.route || `${t.fromBase}-${t.toMarket}`;
-        return routeName === selectedRoute;
-      });
+      list = list.filter(b => b.routeName === selectedRoute);
     }
 
     if (selectedCoop) {
-      list = list.filter(t => {
-        return t.batches.some(b => b.cooperative === selectedCoop);
-      });
+      list = list.filter(b => b.batch.cooperative === selectedCoop);
     }
 
     return list;
-  }, [arrivedTransports, dateRange, selectedRoute, selectedCoop]);
+  }, [allBatches, startDate, endDate, selectedRoute, selectedCoop]);
+
+  const uniqueTransportIds = useMemo(() => {
+    return new Set(filteredBatches.map(b => b.transport.id));
+  }, [filteredBatches]);
 
   const overallStats = useMemo(() => {
-    const total = filteredTransports.length;
-    const totalBaskets = filteredTransports.reduce((sum, t) => sum + t.totalBaskets, 0);
-    const avgLossRate = total > 0
-      ? (filteredTransports.reduce((sum, t) => sum + (t.lossRate || 0), 0) / total).toFixed(2)
+    const totalBaskets = filteredBatches.reduce((sum, b) => sum + b.batch.basketCount, 0);
+    const totalLossBaskets = filteredBatches.reduce((sum, b) => sum + (b.arrivalRecord?.lossBaskets || 0), 0);
+    const avgLossRate = totalBaskets > 0
+      ? (((totalLossBaskets / totalBaskets) * 100).toFixed(2))
       : '0';
-    const avgQuality = total > 0
-      ? (filteredTransports.reduce((sum, t) => sum + (t.qualityScore || 0), 0) / total).toFixed(1)
+    const scoredBatches = filteredBatches.filter(b => b.arrivalRecord && b.arrivalRecord.qualityScore > 0);
+    const avgQuality = scoredBatches.length > 0
+      ? ((scoredBatches.reduce((sum, b) => sum + (b.arrivalRecord!.qualityScore), 0) / scoredBatches.length).toFixed(1))
       : '0';
-    return { total, totalBaskets, avgLossRate, avgQuality };
-  }, [filteredTransports]);
+    return {
+      total: uniqueTransportIds.size,
+      totalBatches: filteredBatches.length,
+      totalBaskets,
+      avgLossRate,
+      avgQuality,
+    };
+  }, [filteredBatches, uniqueTransportIds]);
 
   const byCooperative = useMemo((): RankItem[] => {
     interface AggData {
@@ -88,33 +134,31 @@ const StatsPage: React.FC = () => {
       transportSet: Set<string>;
       lossBasketSum: number;
       qualitySum: number;
-      batchCount: number;
+      scoredCount: number;
     }
     const map = new Map<string, AggData>();
 
-    filteredTransports.forEach(transport => {
-      transport.batches.forEach(batch => {
-        const coopName = batch.cooperative || '未知合作社';
-        if (!map.has(coopName)) {
-          map.set(coopName, {
-            basketCount: 0,
-            transportSet: new Set<string>(),
-            lossBasketSum: 0,
-            qualitySum: 0,
-            batchCount: 0,
-          });
-        }
-        const agg = map.get(coopName)!;
-        agg.basketCount += batch.basketCount;
-        agg.transportSet.add(transport.id);
-        agg.batchCount += 1;
-
-        const arrivalRecord = (transport.arrivalRecords || []).find(r => r.batchId === batch.id);
-        if (arrivalRecord) {
-          agg.lossBasketSum += arrivalRecord.lossBaskets;
+    filteredBatches.forEach(({ batch, transport, arrivalRecord }) => {
+      const coopName = batch.cooperative || '未知合作社';
+      if (!map.has(coopName)) {
+        map.set(coopName, {
+          basketCount: 0,
+          transportSet: new Set<string>(),
+          lossBasketSum: 0,
+          qualitySum: 0,
+          scoredCount: 0,
+        });
+      }
+      const agg = map.get(coopName)!;
+      agg.basketCount += batch.basketCount;
+      agg.transportSet.add(transport.id);
+      if (arrivalRecord) {
+        agg.lossBasketSum += arrivalRecord.lossBaskets;
+        if (arrivalRecord.qualityScore > 0) {
           agg.qualitySum += arrivalRecord.qualityScore;
+          agg.scoredCount += 1;
         }
-      });
+      }
     });
 
     return Array.from(map.entries())
@@ -122,8 +166,8 @@ const StatsPage: React.FC = () => {
         const avgLoss = data.basketCount > 0
           ? parseFloat(((data.lossBasketSum / data.basketCount) * 100).toFixed(1))
           : 0;
-        const avgQuality = data.batchCount > 0 && data.qualitySum > 0
-          ? parseFloat((data.qualitySum / data.batchCount).toFixed(0))
+        const avgQuality = data.scoredCount > 0
+          ? parseFloat((data.qualitySum / data.scoredCount).toFixed(0))
           : 0;
         return {
           name,
@@ -134,7 +178,7 @@ const StatsPage: React.FC = () => {
         };
       })
       .sort((a, b) => b.baskets - a.baskets);
-  }, [filteredTransports]);
+  }, [filteredBatches]);
 
   const byBase = useMemo((): RankItem[] => {
     interface AggData {
@@ -142,33 +186,31 @@ const StatsPage: React.FC = () => {
       transportSet: Set<string>;
       lossBasketSum: number;
       qualitySum: number;
-      batchCount: number;
+      scoredCount: number;
     }
     const map = new Map<string, AggData>();
 
-    filteredTransports.forEach(transport => {
-      transport.batches.forEach(batch => {
-        const baseName = batch.base || transport.fromBase || '未知基地';
-        if (!map.has(baseName)) {
-          map.set(baseName, {
-            basketCount: 0,
-            transportSet: new Set<string>(),
-            lossBasketSum: 0,
-            qualitySum: 0,
-            batchCount: 0,
-          });
-        }
-        const agg = map.get(baseName)!;
-        agg.basketCount += batch.basketCount;
-        agg.transportSet.add(transport.id);
-        agg.batchCount += 1;
-
-        const arrivalRecord = (transport.arrivalRecords || []).find(r => r.batchId === batch.id);
-        if (arrivalRecord) {
-          agg.lossBasketSum += arrivalRecord.lossBaskets;
+    filteredBatches.forEach(({ batch, transport, arrivalRecord }) => {
+      const baseName = batch.base || transport.fromBase || '未知基地';
+      if (!map.has(baseName)) {
+        map.set(baseName, {
+          basketCount: 0,
+          transportSet: new Set<string>(),
+          lossBasketSum: 0,
+          qualitySum: 0,
+          scoredCount: 0,
+        });
+      }
+      const agg = map.get(baseName)!;
+      agg.basketCount += batch.basketCount;
+      agg.transportSet.add(transport.id);
+      if (arrivalRecord) {
+        agg.lossBasketSum += arrivalRecord.lossBaskets;
+        if (arrivalRecord.qualityScore > 0) {
           agg.qualitySum += arrivalRecord.qualityScore;
+          agg.scoredCount += 1;
         }
-      });
+      }
     });
 
     return Array.from(map.entries())
@@ -176,8 +218,8 @@ const StatsPage: React.FC = () => {
         const avgLoss = data.basketCount > 0
           ? parseFloat(((data.lossBasketSum / data.basketCount) * 100).toFixed(1))
           : 0;
-        const avgQuality = data.batchCount > 0 && data.qualitySum > 0
-          ? parseFloat((data.qualitySum / data.batchCount).toFixed(0))
+        const avgQuality = data.scoredCount > 0
+          ? parseFloat((data.qualitySum / data.scoredCount).toFixed(0))
           : 0;
         return {
           name,
@@ -188,42 +230,110 @@ const StatsPage: React.FC = () => {
         };
       })
       .sort((a, b) => b.baskets - a.baskets);
-  }, [filteredTransports]);
+  }, [filteredBatches]);
 
   const byRoute = useMemo((): RankItem[] => {
-    const map = new Map<string, { count: number; baskets: number; lossSum: number; scoreSum: number }>();
-    filteredTransports.forEach(t => {
-      const routeName = t.route || `${t.fromBase}-${t.toMarket}` || '未知线路';
-      const existing = map.get(routeName) || { count: 0, baskets: 0, lossSum: 0, scoreSum: 0 };
-      map.set(routeName, {
-        count: existing.count + 1,
-        baskets: existing.baskets + t.totalBaskets,
-        lossSum: existing.lossSum + (t.lossRate || 0),
-        scoreSum: existing.scoreSum + (t.qualityScore || 0),
-      });
-    });
-    return Array.from(map.entries())
-      .map(([name, data]) => ({
-        name,
-        count: data.count,
-        baskets: data.baskets,
-        lossRate: data.count > 0 ? parseFloat((data.lossSum / data.count).toFixed(2)) : 0,
-        qualityScore: data.count > 0 ? parseFloat((data.scoreSum / data.count).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.baskets - a.baskets);
-  }, [filteredTransports]);
+    interface AggData {
+      basketCount: number;
+      transportSet: Set<string>;
+      lossBasketSum: number;
+      qualitySum: number;
+      scoredCount: number;
+    }
+    const map = new Map<string, AggData>();
 
-  const qualityTrend = useMemo(() => {
-    const last7 = filteredTransports.slice(0, 7).reverse();
-    const maxLoss = Math.max(...last7.map(t => t.lossRate || 0), 5);
-    return last7.map(t => ({
-      date: formatDate(t.arrivalTime || t.createdAt, 'MM/DD'),
-      score: t.qualityScore || 0,
-      lossRate: t.lossRate || 0,
-      scoreHeight: `${((t.qualityScore || 0) / 100) * 100}%`,
-      lossHeight: `${((t.lossRate || 0) / maxLoss) * 100}%`,
-    }));
-  }, [filteredTransports]);
+    filteredBatches.forEach(({ transport, batch, arrivalRecord, routeName }) => {
+      if (!map.has(routeName)) {
+        map.set(routeName, {
+          basketCount: 0,
+          transportSet: new Set<string>(),
+          lossBasketSum: 0,
+          qualitySum: 0,
+          scoredCount: 0,
+        });
+      }
+      const agg = map.get(routeName)!;
+      agg.basketCount += batch.basketCount;
+      agg.transportSet.add(transport.id);
+      if (arrivalRecord) {
+        agg.lossBasketSum += arrivalRecord.lossBaskets;
+        if (arrivalRecord.qualityScore > 0) {
+          agg.qualitySum += arrivalRecord.qualityScore;
+          agg.scoredCount += 1;
+        }
+      }
+    });
+
+    return Array.from(map.entries())
+      .map(([name, data]) => {
+        const avgLoss = data.basketCount > 0
+          ? parseFloat(((data.lossBasketSum / data.basketCount) * 100).toFixed(1))
+          : 0;
+        const avgQuality = data.scoredCount > 0
+          ? parseFloat((data.qualitySum / data.scoredCount).toFixed(0))
+          : 0;
+        return {
+          name,
+          count: data.transportSet.size,
+          baskets: data.basketCount,
+          lossRate: avgLoss,
+          qualityScore: avgQuality,
+        };
+      })
+      .sort((a, b) => b.baskets - a.baskets);
+  }, [filteredBatches]);
+
+  const trendData = useMemo(() => {
+    const transportMap = new Map<string, {
+      date: string;
+      baskets: number;
+      lossBaskets: number;
+      qualitySum: number;
+      scoredCount: number;
+    }>();
+
+    filteredBatches.forEach(({ transport, batch, arrivalRecord }) => {
+      const tid = transport.id;
+      const dateStr = formatDate(transport.arrivalTime || transport.createdAt, 'MM/DD');
+      if (!transportMap.has(tid)) {
+        transportMap.set(tid, {
+          date: dateStr,
+          baskets: 0,
+          lossBaskets: 0,
+          qualitySum: 0,
+          scoredCount: 0,
+        });
+      }
+      const agg = transportMap.get(tid)!;
+      agg.baskets += batch.basketCount;
+      if (arrivalRecord) {
+        agg.lossBaskets += arrivalRecord.lossBaskets;
+        if (arrivalRecord.qualityScore > 0) {
+          agg.qualitySum += arrivalRecord.qualityScore;
+          agg.scoredCount += 1;
+        }
+      }
+    });
+
+    const transportsArr = Array.from(transportMap.entries())
+      .map(([tid, data]) => ({ tid, ...data }))
+      .slice(0, 10)
+      .reverse();
+
+    const maxLoss = Math.max(...transportsArr.map(t => t.baskets > 0 ? (t.lossBaskets / t.baskets) * 100 : 0), 5);
+
+    return transportsArr.map(t => {
+      const lossRate = t.baskets > 0 ? (t.lossBaskets / t.baskets) * 100 : 0;
+      const quality = t.scoredCount > 0 ? t.qualitySum / t.scoredCount : 0;
+      return {
+        date: t.date,
+        score: parseFloat(quality.toFixed(0)),
+        lossRate: parseFloat(lossRate.toFixed(1)),
+        scoreHeight: `${(quality / 100) * 100}%`,
+        lossHeight: `${(lossRate / maxLoss) * 100}%`,
+      };
+    });
+  }, [filteredBatches]);
 
   const currentRankList = useMemo(() => {
     switch (activeTab) {
@@ -249,22 +359,34 @@ const StatsPage: React.FC = () => {
     });
   };
 
+  const handleResetFilters = () => {
+    setStartDate('');
+    setEndDate('');
+    setSelectedRoute(null);
+    setSelectedCoop(null);
+  };
+
+  const dateRangeLabel = useMemo(() => {
+    if (startDate && endDate) return `${startDate.slice(5)}~${endDate.slice(5)}`;
+    if (startDate) return `${startDate.slice(5)}起`;
+    if (endDate) return `至${endDate.slice(5)}`;
+    return '全部';
+  }, [startDate, endDate]);
+
   return (
     <ScrollView scrollY className={styles.page}>
       <View className={styles.content}>
         <View className={styles.header}>
           <Text className={styles.headerTitle}>统计分析</Text>
           <Text className={styles.headerSubtitle}>
-            共 {overallStats.total} 趟运输 · {overallStats.totalBaskets} 筐蔬菜
+            共 {overallStats.total} 趟 · {overallStats.totalBatches} 批次 · {overallStats.totalBaskets} 筐
           </Text>
         </View>
 
         <View className={styles.filterBar} onClick={() => setShowFilterModal(true)}>
           <View className={styles.filterItem}>
             <Text className={styles.filterLabel}>日期</Text>
-            <Text className={styles.filterValue}>
-              {dateRange === '7d' ? '近7天' : dateRange === '30d' ? '近30天' : '全部'}
-            </Text>
+            <Text className={styles.filterValue}>{dateRangeLabel}</Text>
           </View>
           <View className={styles.filterItem}>
             <Text className={styles.filterLabel}>线路</Text>
@@ -285,14 +407,14 @@ const StatsPage: React.FC = () => {
 
         <View className={styles.statGrid}>
           <StatCard
-            title="总运输趟次"
+            title="运输趟次"
             value={overallStats.total}
             unit="趟"
             icon="🚚"
             color="blue"
           />
           <StatCard
-            title="总运输筐数"
+            title="运输筐数"
             value={overallStats.totalBaskets}
             unit="筐"
             icon="🧺"
@@ -374,35 +496,58 @@ const StatsPage: React.FC = () => {
 
         <View className={styles.card}>
           <View className={styles.chartTitle}>
-            <Text>品质趋势</Text>
-            <Text style={{ fontSize: '24rpx', color: '#94a3b8' }}>最近7趟</Text>
+            <Text>品质与损耗趋势</Text>
+            <Text style={{ fontSize: '24rpx', color: '#94a3b8' }}>最近{trendData.length}趟</Text>
           </View>
 
-          {qualityTrend.length === 0 ? (
+          {trendData.length === 0 ? (
             <View className={styles.emptyState}>
               <Text className={styles.emptyIcon}>📈</Text>
               <Text className={styles.emptyText}>暂无趋势数据</Text>
             </View>
           ) : (
             <>
-              <View className={styles.chartBars}>
-                {qualityTrend.map((item, index) => (
-                  <View key={index} className={styles.chartBar}>
-                    <View
-                      className={classNames(styles.barFill, item.score >= 90 ? 'low' : item.score >= 70 ? 'medium' : 'high')}
-                      style={{ height: item.scoreHeight }}
-                    >
-                      <Text className={styles.barValue}>{item.score}</Text>
+              <View className={styles.dualChart}>
+                <View className={styles.chartBars}>
+                  {trendData.map((item, index) => (
+                    <View key={`score-${index}`} className={styles.chartBar}>
+                      <View className={styles.barTrack}>
+                        <View
+                          className={classNames(styles.barFill, styles.scoreBar, item.score >= 90 ? 'low' : item.score >= 70 ? 'medium' : 'high')}
+                          style={{ height: item.scoreHeight }}
+                        >
+                          <Text className={styles.barValue}>{item.score}</Text>
+                        </View>
+                      </View>
+                      <Text className={styles.barLabel}>{item.date}</Text>
                     </View>
-                    <Text className={styles.barLabel}>{item.date}</Text>
-                  </View>
-                ))}
+                  ))}
+                </View>
+                <View className={styles.chartBars}>
+                  {trendData.map((item, index) => (
+                    <View key={`loss-${index}`} className={styles.chartBar}>
+                      <View className={styles.barTrack}>
+                        <View
+                          className={classNames(styles.barFill, styles.lossBar, item.lossRate >= 5 ? 'high' : item.lossRate >= 2 ? 'medium' : 'low')}
+                          style={{ height: item.lossHeight }}
+                        >
+                          <Text className={styles.barValue}>{item.lossRate}%</Text>
+                        </View>
+                      </View>
+                      <Text className={styles.barLabel}>&nbsp;</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
 
               <View className={styles.chartLegend}>
                 <View className={styles.legendItem}>
                   <View className={classNames(styles.legendDot, 'score')} />
-                  <Text>品质分</Text>
+                  <Text>品质分（左轴，越高越好）</Text>
+                </View>
+                <View className={styles.legendItem}>
+                  <View className={classNames(styles.legendDot, 'loss')} />
+                  <Text>损耗率（右轴，越低越好）</Text>
                 </View>
               </View>
             </>
@@ -430,11 +575,7 @@ const StatsPage: React.FC = () => {
                 <Text className="modal-title">筛选条件</Text>
                 <Text
                   style={{ fontSize: '26rpx', color: '#0ea5e9' }}
-                  onClick={() => {
-                    setDateRange('all');
-                    setSelectedRoute(null);
-                    setSelectedCoop(null);
-                  }}
+                  onClick={handleResetFilters}
                 >
                   重置
                 </Text>
@@ -442,17 +583,59 @@ const StatsPage: React.FC = () => {
 
               <ScrollView scrollY className={styles.filterContent}>
                 <View className={styles.filterSection}>
-                  <Text className={styles.filterSectionTitle}>时间范围</Text>
+                  <Text className={styles.filterSectionTitle}>起止日期</Text>
+                  <View className={styles.dateRangeRow}>
+                    <Picker
+                      mode="date"
+                      value={startDate}
+                      onChange={e => setStartDate(e.detail.value)}
+                    >
+                      <View className={styles.datePicker}>
+                        <Text className={styles.datePickerLabel}>开始</Text>
+                        <Text className={styles.datePickerValue}>
+                          {startDate || '选择日期'}
+                        </Text>
+                      </View>
+                    </Picker>
+                    <Text className={styles.dateSeparator}>至</Text>
+                    <Picker
+                      mode="date"
+                      value={endDate}
+                      onChange={e => setEndDate(e.detail.value)}
+                    >
+                      <View className={styles.datePicker}>
+                        <Text className={styles.datePickerLabel}>结束</Text>
+                        <Text className={styles.datePickerValue}>
+                          {endDate || '选择日期'}
+                        </Text>
+                      </View>
+                    </Picker>
+                  </View>
+                </View>
+
+                <View className={styles.filterSection}>
+                  <Text className={styles.filterSectionTitle}>快捷选择</Text>
                   <View className={styles.filterOptionRow}>
                     {[
-                      { key: '7d', label: '近7天' },
-                      { key: '30d', label: '近30天' },
-                      { key: 'all', label: '全部' },
+                      { label: '近7天', days: 7 },
+                      { label: '近30天', days: 30 },
+                      { label: '全部', days: -1 },
                     ].map(opt => (
                       <View
-                        key={opt.key}
-                        className={classNames(styles.filterOption, { [styles.active]: dateRange === opt.key })}
-                        onClick={() => setDateRange(opt.key as DateRangeType)}
+                        key={opt.label}
+                        className={styles.filterOption}
+                        onClick={() => {
+                          if (opt.days < 0) {
+                            setStartDate('');
+                            setEndDate('');
+                          } else {
+                            const today = new Date();
+                            const start = new Date();
+                            start.setDate(today.getDate() - (opt.days - 1));
+                            setStartDate(formatDate(start, 'YYYY-MM-DD'));
+                            setEndDate(formatDate(today, 'YYYY-MM-DD'));
+                          }
+                        }}
                       >
                         {opt.label}
                       </View>

@@ -202,6 +202,7 @@ const TransportPage: React.FC = () => {
 
   const handleOpenLossCheck = () => {
     if (!activeTransportId || !activeTransport) return;
+    initLossRecords();
     setShowLossModal(true);
   };
 
@@ -253,7 +254,7 @@ const TransportPage: React.FC = () => {
   };
 
   const handleSaveLossRecords = () => {
-    if (!activeTransportId) return;
+    if (!activeTransportId || !activeTransport) return;
     const records: Partial<ArrivalRecord>[] = lossRecords.map(r => {
       const arrival = parseInt(r.arrivalBaskets) || 0;
       const loss = parseInt(r.lossBaskets) || 0;
@@ -275,6 +276,25 @@ const TransportPage: React.FC = () => {
     batchUpdateArrivalRecords(activeTransportId, records);
     setShowLossModal(false);
     Taro.showToast({ title: '保存成功', icon: 'success' });
+
+    setTimeout(() => {
+      Taro.showModal({
+        title: '确认到站',
+        content: `损耗已记录完成，是否确认车辆已到达 ${activeTransport.toMarket}？`,
+        confirmText: '确认到站',
+        cancelText: '稍后再说',
+        success: (res) => {
+          if (res.confirm) {
+            updateTransportStatus(activeTransportId, 'arrived');
+            if (currentTransportId === activeTransportId) {
+              setCurrentTransport(null);
+            }
+            setSelectedTransportId(null);
+            Taro.switchTab({ url: '/pages/arrival/index' });
+          }
+        },
+      });
+    }, 300);
   };
 
   const handleArrival = () => {
@@ -774,10 +794,10 @@ const TransportPage: React.FC = () => {
             <View className={styles.lossSheetHeader}>
               <Text className="modal-title">损耗核对</Text>
               <Text
-                style={{ fontSize: '26rpx', color: '#94a3b8' }}
+                style={{ fontSize: '26rpx', color: '#0ea5e9' }}
                 onClick={() => initLossRecords()}
               >
-                按批次核对
+                重置
               </Text>
             </View>
             <ScrollView scrollY className={styles.lossList}>
@@ -786,13 +806,6 @@ const TransportPage: React.FC = () => {
                   <Text className={styles.riskTipIcon}>⚠️</Text>
                   <Text className={styles.riskTipText}>
                     运输中有 {sortedPressureRiskRecords.length} 条压筐风险记录，请重点核对
-                  </Text>
-                </View>
-              )}
-              {lossRecords.length === 0 && activeTransport?.batches.length! > 0 && (
-                <View style={{ padding: '32rpx', textAlign: 'center' }}>
-                  <Text onClick={initLossRecords} style={{ color: '#0ea5e9' }}>
-                    点击加载批次列表 →
                   </Text>
                 </View>
               )}
@@ -823,58 +836,53 @@ const TransportPage: React.FC = () => {
                         ))}
                       </View>
                     )}
-                    <View style={{ display: 'flex', gap: '12rpx', marginBottom: '12rpx' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>装车筐数</Text>
-                      <Text style={{ fontSize: '28rpx', fontWeight: '600', color: '#0f172a' }}>
-                        {rec.originalBaskets}筐
-                      </Text>
+                    <View className={styles.lossInputRow}>
+                      <View className={styles.lossInputCol}>
+                        <Text className={styles.lossInputLabel}>装车筐数</Text>
+                        <Text className={styles.lossInputValue}>{rec.originalBaskets}筐</Text>
+                      </View>
+                      <View className={styles.lossInputCol}>
+                        <Text className={styles.lossInputLabel}>到站筐数</Text>
+                        <Input
+                          type="number"
+                          value={rec.arrivalBaskets}
+                          onInput={(e) => handleLossRecordChange(index, 'arrivalBaskets', e.detail.value)}
+                          className={classNames('form-input', styles.lossInput)}
+                        />
+                      </View>
+                      <View className={styles.lossInputCol}>
+                        <Text className={styles.lossInputLabel}>损耗筐数</Text>
+                        <Input
+                          type="number"
+                          value={rec.lossBaskets}
+                          onInput={(e) => handleLossRecordChange(index, 'lossBaskets', e.detail.value)}
+                          className={classNames('form-input', styles.lossInput, { [styles.lossInputDanger]: parseInt(rec.lossBaskets) > 0 })}
+                        />
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>到站筐数</Text>
-                      <Input
-                        className="form-input"
-                        type="number"
-                        value={rec.arrivalBaskets}
-                        onInput={(e) => handleLossRecordChange(index, 'arrivalBaskets', e.detail.value)}
-                        style={{ fontSize: '28rpx', fontWeight: '600' }}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>损耗筐数</Text>
-                      <Input
-                        className="form-input"
-                        type="number"
-                        value={rec.lossBaskets}
-                        onInput={(e) => handleLossRecordChange(index, 'lossBaskets', e.detail.value)}
-                        style={{ fontSize: '28rpx', fontWeight: '600', color: parseInt(rec.lossBaskets) > 0 ? '#ef4444' : '#0f172a' }}
-                      />
-                    </View>
-                  </View>
-                  <View style={{ display: 'flex', gap: '12rpx' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>品质分</Text>
-                      <Input
-                        className="form-input"
-                        type="number"
-                        value={rec.qualityScore}
-                        onInput={(e) => handleLossRecordChange(index, 'qualityScore', e.detail.value)}
-                        style={{ fontSize: '28rpx', fontWeight: '600' }}
-                      />
-                    </View>
-                    <View style={{ flex: 2 }}>
-                      <Text style={{ fontSize: '22rpx', color: '#94a3b8' }}>备注</Text>
-                      <Input
-                        className="form-input"
-                        value={rec.notes}
-                        onInput={(e) => handleLossRecordChange(index, 'notes', e.detail.value)}
-                        placeholder="选填"
-                        style={{ fontSize: '26rpx' }}
-                      />
+                    <View className={styles.lossInputRow}>
+                      <View className={styles.lossInputCol}>
+                        <Text className={styles.lossInputLabel}>品质分</Text>
+                        <Input
+                          type="number"
+                          value={rec.qualityScore}
+                          onInput={(e) => handleLossRecordChange(index, 'qualityScore', e.detail.value)}
+                          className={classNames('form-input', styles.lossInput)}
+                        />
+                      </View>
+                      <View style={{ flex: 2 }}>
+                        <Text className={styles.lossInputLabel}>备注</Text>
+                        <Input
+                          value={rec.notes}
+                          onInput={(e) => handleLossRecordChange(index, 'notes', e.detail.value)}
+                          placeholder="选填"
+                          className={classNames('form-input', styles.lossInput)}
+                        />
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
             <View className="modal-actions">
               <View className="modal-btn cancel" onClick={() => setShowLossModal(false)}>取消</View>
@@ -882,7 +890,7 @@ const TransportPage: React.FC = () => {
                 className="modal-btn confirm"
                 onClick={handleSaveLossRecords}
               >
-                保存核对
+                保存核对 → 确认到站
               </View>
             </View>
           </View>

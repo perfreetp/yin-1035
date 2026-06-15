@@ -469,3 +469,90 @@
     background: #f1f5f9;
   }
 }
+
+.dateRangeRow {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.datePicker {
+  flex: 1;
+  padding: $spacing-md;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  border: 2rpx solid transparent;
+  transition: all $transition-base;
+
+  &:active {
+    border-color: $color-primary-soft;
+  }
+}
+
+.datePickerLabel {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+}
+
+.datePickerValue {
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+}
+
+.dateSeparator {
+  font-size: $font-size-md;
+  color: $color-text-tertiary;
+  flex-shrink: 0;
+}
+
+.dualChart {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+  padding-top: 40rpx;
+}
+
+.barTrack {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 220rpx;
+  border-bottom: 2rpx solid $color-divider;
+}
+
+.scoreBar {
+  background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+
+  &.low {
+    background: linear-gradient(180deg, #34d399 0%, $color-success 100%);
+  }
+
+  &.medium {
+    background: linear-gradient(180deg, #60a5fa 0%, #0ea5e9 100%);
+  }
+
+  &.high {
+    background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
+  }
+}
+
+.lossBar {
+  background: linear-gradient(180deg, #fda4af 0%, #ef4444 100%);
+
+  &.low {
+    background: linear-gradient(180deg, #86efac 0%, #22c55e 100%);
+  }
+
+  &.medium {
+    background: linear-gradient(180deg, #fcd34d 0%, #f59e0b 100%);
+  }
+
+  &.high {
+    background: linear-gradient(180deg, #fca5a5 0%, #dc2626 100%);
+  }
+}

@@ -1,18 +1,22 @@
 import Taro from '@tarojs/taro';
 
+declare const wx: any;
+
 export const tempFileToBase64 = async (tempFilePath: string): Promise<string> => {
   try {
-    if (typeof wx !== 'undefined') {
-      const fs = wx.getFileSystemManager();
+    if (typeof Taro.getEnv !== 'undefined' && (Taro.getEnv() === Taro.ENV_TYPE.WEAPP || typeof (globalThis as any).wx !== 'undefined')) {
+      const fs = (Taro as any).getFileSystemManager
+        ? (Taro as any).getFileSystemManager()
+        : wx.getFileSystemManager();
       return new Promise((resolve, reject) => {
         fs.readFile({
           filePath: tempFilePath,
           encoding: 'base64',
-          success: (res) => {
+          success: (res: any) => {
             const base64 = `data:image/jpeg;base64,${res.data}`;
             resolve(base64);
           },
-          fail: (err) => {
+          fail: (err: any) => {
             console.error('[image] readFile fail:', err);
             reject(err);
           },

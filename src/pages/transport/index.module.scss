@@ -750,3 +750,42 @@
   margin-left: 8rpx;
 }
 
+.lossInputRow {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.lossInputCol {
+  flex: 1;
+}
+
+.lossInputLabel {
+  font-size: 22rpx;
+  color: #94a3b8;
+  display: block;
+  margin-bottom: 4rpx;
+}
+
+.lossInputValue {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #0f172a;
+  display: block;
+  padding: 16rpx 0;
+}
+
+.lossInput {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #0f172a;
+
+  &.lossInputDanger {
+    color: #ef4444;
+  }
+}
+
